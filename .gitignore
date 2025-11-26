@@ -23,3 +23,7 @@ npm-debug.log*
 
 # Cache
 .cache/
+
+# Auto-push script logs
+auto-push.log
+auto-push.bat
