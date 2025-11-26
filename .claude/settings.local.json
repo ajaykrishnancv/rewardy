@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command:*)",
+      "Bash(del PRD_ITHUQUEST.md)",
+      "Bash(del TASK_LIST.md)",
+      "Bash(ren PRD_REWARDY.md PRD.md)",
+      "Bash(ren:*)",
+      "Bash(dir /b:*)",
+      "Bash(dir \"C:\\Users\\Book 3\\Documents\\Rewardy\")",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(node -e:*)",
+      "Bash(gh:*)",
+      "Bash(git --version:*)",
+      "Bash(git init:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

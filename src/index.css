@@ -1,0 +1,408 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom CSS Variables - Futuristic Theme */
+:root {
+  --color-star: #fbbf24;
+  --color-gem: #a855f7;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  /* Futuristic palette */
+  --color-neon-blue: #00d4ff;
+  --color-neon-purple: #b24bf3;
+  --color-neon-pink: #ff2d92;
+  --color-neon-green: #00ff88;
+  --color-dark-bg: #0a0a1a;
+  --color-dark-card: #12122a;
+  --color-dark-border: rgba(255, 255, 255, 0.1);
+
+  /* Glass effect */
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+/* Base styles */
+body {
+  @apply antialiased;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  min-height: 100vh;
+}
+
+/* Animated gradient background */
+.bg-animated-gradient {
+  background: linear-gradient(-45deg, #1a1a2e, #16213e, #0f3460, #1a1a3e);
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Glassmorphism card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-card-light {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+}
+
+/* Neon glow effects */
+.neon-glow-blue {
+  box-shadow: 0 0 5px var(--color-neon-blue),
+              0 0 10px var(--color-neon-blue),
+              0 0 20px var(--color-neon-blue);
+}
+
+.neon-glow-purple {
+  box-shadow: 0 0 5px var(--color-neon-purple),
+              0 0 10px var(--color-neon-purple),
+              0 0 20px var(--color-neon-purple);
+}
+
+.neon-glow-pink {
+  box-shadow: 0 0 5px var(--color-neon-pink),
+              0 0 10px var(--color-neon-pink),
+              0 0 20px var(--color-neon-pink);
+}
+
+.neon-text-blue {
+  color: var(--color-neon-blue);
+  text-shadow: 0 0 10px var(--color-neon-blue);
+}
+
+.neon-text-purple {
+  color: var(--color-neon-purple);
+  text-shadow: 0 0 10px var(--color-neon-purple);
+}
+
+/* Child-friendly rounded elements */
+.kid-friendly {
+  border-radius: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.kid-friendly:hover {
+  transform: scale(1.02);
+}
+
+/* Futuristic button */
+.btn-futuristic {
+  @apply relative overflow-hidden px-6 py-3 font-semibold rounded-xl transition-all duration-300;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-futuristic:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.btn-futuristic::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.btn-futuristic:hover::before {
+  left: 100%;
+}
+
+/* Light mode input (for auth pages) */
+.input-light {
+  @apply w-full px-4 py-3 rounded-xl transition-all duration-300 bg-gray-50 border border-gray-200 text-gray-900;
+}
+
+.input-light:focus {
+  @apply outline-none border-indigo-500 ring-2 ring-indigo-200;
+}
+
+/* Custom scrollbar - Futuristic */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #667eea, #764ba2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #764ba2, #667eea);
+}
+
+/* Loading spinner - Futuristic */
+.spinner {
+  @apply w-8 h-8 rounded-full;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--color-neon-blue);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Card hover effect */
+.card-hover {
+  @apply transition-all duration-300;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Button base styles */
+.btn {
+  @apply inline-flex items-center justify-center px-4 py-2 font-medium rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-primary {
+  @apply btn;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.btn-secondary {
+  @apply btn bg-white/10 text-white border border-white/20 hover:bg-white/20;
+}
+
+.btn-success {
+  @apply btn;
+  background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+  color: white;
+}
+
+.btn-danger {
+  @apply btn;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%);
+  color: white;
+}
+
+/* Star currency display */
+.star-display {
+  @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.1) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.star-icon {
+  color: #fbbf24;
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.6));
+}
+
+/* Gem currency display */
+.gem-display {
+  @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(168, 85, 247, 0.1) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.gem-icon {
+  color: #a855f7;
+  filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.6));
+}
+
+/* Badge styles */
+.badge {
+  @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
+}
+
+.badge-star {
+  @apply badge;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.1) 100%);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.badge-gem {
+  @apply badge;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(168, 85, 247, 0.1) 100%);
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.badge-success {
+  @apply badge;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(34, 197, 94, 0.1) 100%);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badge-warning {
+  @apply badge;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(245, 158, 11, 0.1) 100%);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-danger {
+  @apply badge;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.1) 100%);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Progress bar - Futuristic */
+.progress-bar {
+  @apply w-full h-3 rounded-full overflow-hidden;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.progress-bar-fill {
+  @apply h-full rounded-full transition-all duration-500;
+  background: linear-gradient(90deg, var(--color-neon-blue), var(--color-neon-purple));
+}
+
+/* Quest/Task card */
+.quest-card {
+  @apply relative overflow-hidden p-4;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  transition: all 0.3s ease;
+}
+
+.quest-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.quest-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-neon-blue), var(--color-neon-purple), var(--color-neon-pink));
+}
+
+/* Achievement badge */
+.achievement-badge {
+  @apply relative w-20 h-20 rounded-2xl flex items-center justify-center;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.achievement-badge.unlocked {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(168, 85, 247, 0.1) 100%);
+  border-color: var(--color-neon-purple);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+}
+
+.achievement-badge.locked {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+
+/* Sidebar glass effect */
+.sidebar-glass {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Floating orbs decoration */
+.floating-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.3;
+  animation: float 6s ease-in-out infinite;
+}
+
+.floating-orb-1 {
+  width: 200px;
+  height: 200px;
+  background: var(--color-neon-blue);
+  top: 10%;
+  left: 10%;
+}
+
+.floating-orb-2 {
+  width: 150px;
+  height: 150px;
+  background: var(--color-neon-purple);
+  top: 60%;
+  right: 10%;
+  animation-delay: -2s;
+}
+
+.floating-orb-3 {
+  width: 100px;
+  height: 100px;
+  background: var(--color-neon-pink);
+  bottom: 20%;
+  left: 30%;
+  animation-delay: -4s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Streak fire effect */
+.streak-fire {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.2) 0%, rgba(234, 88, 12, 0.1) 100%);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.streak-fire-icon {
+  color: #f97316;
+  filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.6));
+  animation: flicker 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes flicker {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0.8; transform: scale(1.1); }
+}
