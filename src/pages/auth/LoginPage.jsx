@@ -4,6 +4,17 @@ import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
+const ROLE_DISPLAY_NAMES = {
+  primary_parent: 'Primary Parent',
+  other_parent: 'Other Parent',
+  observer: 'Observer',
+  child: 'Child'
+}
+
+function formatRoleType(roleType) {
+  return ROLE_DISPLAY_NAMES[roleType] || roleType
+}
+
 export default function LoginPage() {
   const navigate = useNavigate()
   const { loginFamilyRole, isLoading, error, clearError } = useAuthStore()
@@ -52,10 +63,10 @@ export default function LoginPage() {
     try {
       const { data, error } = await supabase
         .from('family_roles')
-        .select('id, role, role_label')
+        .select('id, role_type, role_label')
         .eq('family_id', familyId)
-        .eq('is_active', true)
-        .order('role')
+        .eq('is_enabled', true)
+        .order('role_type')
 
       if (error) throw error
       setRoles(data || [])
@@ -127,8 +138,8 @@ export default function LoginPage() {
               {!selectedFamily ? 'Select family first' : 'Select your role'}
             </option>
             {roles.map((role) => (
-              <option key={role.id} value={role.role}>
-                {role.role_label}
+              <option key={role.id} value={role.role_type}>
+                {role.role_label || formatRoleType(role.role_type)}
               </option>
             ))}
           </select>

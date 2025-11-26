@@ -14,7 +14,14 @@
       "Bash(node -e:*)",
       "Bash(gh:*)",
       "Bash(git --version:*)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git remote:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

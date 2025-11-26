@@ -15,6 +15,7 @@ import AdminLoginPage from './pages/auth/AdminLoginPage'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import FamiliesPage from './pages/admin/FamiliesPage'
 import FamilyDetailPage from './pages/admin/FamilyDetailPage'
+import AdminSettingsPage from './pages/admin/AdminSettingsPage'
 
 // Parent Pages
 import ParentDashboard from './pages/parent/ParentDashboard'
@@ -125,6 +126,7 @@ function App() {
         <Route index element={<AdminDashboard />} />
         <Route path="families" element={<FamiliesPage />} />
         <Route path="families/:id" element={<FamilyDetailPage />} />
+        <Route path="settings" element={<AdminSettingsPage />} />
       </Route>
 
       {/* Parent/Observer routes */}

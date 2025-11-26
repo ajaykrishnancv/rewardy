@@ -231,8 +231,8 @@ export const useAuthStore = create((set, get) => ({
           )
         `)
         .eq('family_id', familyId)
-        .eq('role', role)
-        .eq('is_active', true)
+        .eq('role_type', role)
+        .eq('is_enabled', true)
         .single()
 
       if (error || !familyRole) {
@@ -279,7 +279,7 @@ export const useAuthStore = create((set, get) => ({
 
       // If child role, get child profile
       let childProfile = null
-      if (role === ROLES.CHILD) {
+      if (familyRole.role_type === ROLES.CHILD) {
         const { data: profile } = await supabase
           .from('child_profiles')
           .select('*')
@@ -294,7 +294,7 @@ export const useAuthStore = create((set, get) => ({
         familyCode: familyRole.families.family_code,
         familyName: familyRole.families.display_name,
         timezone: familyRole.families.timezone,
-        role: familyRole.role,
+        role: familyRole.role_type,
         roleLabel: familyRole.role_label,
         childProfile,
       }
