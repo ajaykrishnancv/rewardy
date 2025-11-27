@@ -369,15 +369,15 @@
 ### Week 18: PWA, Testing & Deployment
 | Done | ID | Task | Hours | Notes |
 |:----:|:---|:-----|:-----:|:------|
-| [ ] | 6.1.1 | Configure service worker | 4 | vite-plugin-pwa |
-| [ ] | 6.1.2 | Create app manifest | 2 | Icons, name, colors |
-| [ ] | 6.1.3 | Add install prompt | 2 | BeforeInstallPrompt |
-| [ ] | 6.1.4 | Implement offline detection | 2 | Show banner |
+| [x] | 6.1.1 | Configure service worker | 4 | vite-plugin-pwa |
+| [x] | 6.1.2 | Create app manifest | 2 | Icons, name, colors |
+| [x] | 6.1.3 | Add install prompt | 2 | BeforeInstallPrompt |
+| [x] | 6.1.4 | Implement offline detection | 2 | Show banner |
 | [ ] | 6.1.5 | Performance audit | 4 | Run Lighthouse |
-| [ ] | 6.1.6 | Optimize bundle size | 4 | Code splitting |
-| [ ] | 6.1.7 | Add loading states | 4 | Skeletons |
-| [ ] | 6.1.8 | Implement error boundaries | 3 | Catch errors |
-| [ ] | 6.1.9 | Add toast notifications | 3 | Success/error feedback |
+| [x] | 6.1.6 | Optimize bundle size | 4 | Code splitting |
+| [x] | 6.1.7 | Add loading states | 4 | Skeletons |
+| [x] | 6.1.8 | Implement error boundaries | 3 | Catch errors |
+| [x] | 6.1.9 | Add toast notifications | 3 | Success/error feedback |
 | [ ] | 6.1.10 | End-to-end testing | 8 | All user flows |
 | [ ] | 6.1.11 | Bug fixes | 6 | From testing |
 | [ ] | 6.1.12 | Cross-browser testing | 3 | Chrome, Safari, Firefox |
@@ -482,7 +482,7 @@
 ---
 
 *Last Updated: November 27, 2025*
-*Version: 2.3 - Phase 5 Complete*
+*Version: 2.4 - Phase 6 In Progress*
 
 ## Progress Summary
 - **Phase 1**: 40/40 tasks complete (100%)
@@ -490,5 +490,5 @@
 - **Phase 3**: 25/25 tasks complete (100%)
 - **Phase 4**: 24/24 tasks complete (100%)
 - **Phase 5**: 20/21 tasks complete (95%) - PDF export deferred
-- **Phase 6**: 0/16 tasks complete (0%)
-- **Overall**: ~90% complete (148/166 tasks)
+- **Phase 6**: 8/16 tasks complete (50%) - PWA, error handling, loading states, toast done
+- **Overall**: ~94% complete (156/166 tasks)

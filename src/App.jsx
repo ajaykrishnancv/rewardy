@@ -2,6 +2,11 @@ import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore, ROLES } from './stores/authStore'
 
+// Components
+import ErrorBoundary from './components/ErrorBoundary'
+import PWAInstallPrompt from './components/PWAInstallPrompt'
+import OfflineBanner from './components/OfflineBanner'
+
 // Layouts
 import AuthLayout from './layouts/AuthLayout'
 import DashboardLayout from './layouts/DashboardLayout'
@@ -105,12 +110,15 @@ function App() {
   }
 
   return (
-    <Routes>
-      {/* Public routes */}
-      <Route element={<AuthLayout />}>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/admin/login" element={<AdminLoginPage />} />
-      </Route>
+    <ErrorBoundary>
+      <OfflineBanner />
+      <PWAInstallPrompt />
+      <Routes>
+        {/* Public routes */}
+        <Route element={<AuthLayout />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+        </Route>
 
       {/* Role-based redirect */}
       <Route path="/" element={<RoleBasedRedirect />} />
@@ -166,7 +174,8 @@ function App() {
 
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </ErrorBoundary>
   )
 }
 

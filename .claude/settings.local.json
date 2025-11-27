@@ -21,7 +21,9 @@
       "Bash(git branch:*)",
       "Bash(git push:*)",
       "Bash(git remote:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(node scripts/generate-icons.js:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []
