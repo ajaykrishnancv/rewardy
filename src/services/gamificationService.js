@@ -102,7 +102,7 @@ export async function generateDailyQuests(childId) {
   // Check if daily quests already exist for today
   const { data: existingQuests } = await supabase
     .from('quests')
-    .select('id')
+    .select('id, title')
     .eq('child_id', childId)
     .eq('quest_type', 'daily')
     .eq('start_date', today)
@@ -139,6 +139,19 @@ export async function generateDailyQuests(childId) {
       end_date: today,
       is_completed: false
     })
+  }
+
+  // Double-check before inserting (to handle race conditions)
+  const { data: doubleCheck } = await supabase
+    .from('quests')
+    .select('id')
+    .eq('child_id', childId)
+    .eq('quest_type', 'daily')
+    .eq('start_date', today)
+    .limit(1)
+
+  if (doubleCheck && doubleCheck.length > 0) {
+    return doubleCheck
   }
 
   const { data, error } = await supabase
@@ -207,6 +220,19 @@ export async function generateWeeklyQuests(childId) {
       end_date: weekEndStr,
       is_completed: false
     })
+  }
+
+  // Double-check before inserting (to handle race conditions)
+  const { data: doubleCheck } = await supabase
+    .from('quests')
+    .select('id')
+    .eq('child_id', childId)
+    .eq('quest_type', 'weekly')
+    .eq('start_date', weekStartStr)
+    .limit(1)
+
+  if (doubleCheck && doubleCheck.length > 0) {
+    return doubleCheck
   }
 
   const { data, error } = await supabase

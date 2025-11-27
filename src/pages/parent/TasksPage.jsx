@@ -48,7 +48,9 @@ export default function TasksPage() {
     category: 'academic',
     scheduled_time: '',
     star_value: 5,
-    is_bonus: false
+    is_bonus: false,
+    recurrence_type: 'none', // none, daily, weekly, monthly
+    recurrence_count: 4 // number of occurrences to create
   })
 
   useEffect(() => {
@@ -97,7 +99,9 @@ export default function TasksPage() {
       category: 'academic',
       scheduled_time: '',
       star_value: 5,
-      is_bonus: false
+      is_bonus: false,
+      recurrence_type: 'none',
+      recurrence_count: 4
     })
     setShowTaskModal(true)
   }
@@ -110,9 +114,30 @@ export default function TasksPage() {
       category: task.category || 'other',
       scheduled_time: task.scheduled_time || '',
       star_value: task.star_value || 5,
-      is_bonus: task.is_bonus || false
+      is_bonus: task.is_bonus || false,
+      recurrence_type: 'none', // Don't show recurrence when editing
+      recurrence_count: 4
     })
     setShowTaskModal(true)
+  }
+
+  // Helper to calculate next date based on recurrence type
+  function getNextDate(baseDate, recurrenceType, offset) {
+    const date = new Date(baseDate + 'T12:00:00')
+    switch (recurrenceType) {
+      case 'daily':
+        date.setDate(date.getDate() + offset)
+        break
+      case 'weekly':
+        date.setDate(date.getDate() + (offset * 7))
+        break
+      case 'monthly':
+        date.setMonth(date.getMonth() + offset)
+        break
+      default:
+        break
+    }
+    return getLocalDateString(date)
   }
 
   async function handleSaveTask() {
@@ -122,32 +147,56 @@ export default function TasksPage() {
     }
 
     try {
-      const taskData = {
+      const baseTaskData = {
         child_id: childProfile.id,
         title: taskForm.title.trim(),
         description: taskForm.description.trim() || null,
         category: taskForm.category,
+        scheduled_time: taskForm.scheduled_time || null,
         star_value: taskForm.star_value,
         is_bonus: taskForm.is_bonus,
-        task_date: selectedDate,
         status: 'pending'
       }
 
       if (editingTask) {
+        // When editing, just update the single task
         const { error } = await supabase
           .from('daily_tasks')
-          .update(taskData)
+          .update({ ...baseTaskData, task_date: selectedDate })
           .eq('id', editingTask.id)
 
         if (error) throw error
         toast.success('Task updated!')
       } else {
-        const { error } = await supabase
-          .from('daily_tasks')
-          .insert(taskData)
+        // Creating new task(s)
+        if (taskForm.recurrence_type === 'none') {
+          // Single task
+          const { error } = await supabase
+            .from('daily_tasks')
+            .insert({ ...baseTaskData, task_date: selectedDate })
 
-        if (error) throw error
-        toast.success('Task created!')
+          if (error) throw error
+          toast.success('Task created!')
+        } else {
+          // Recurring tasks - create multiple
+          const tasksToCreate = []
+          const count = Math.min(taskForm.recurrence_count, 52) // Max 52 occurrences
+
+          for (let i = 0; i < count; i++) {
+            const taskDate = getNextDate(selectedDate, taskForm.recurrence_type, i)
+            tasksToCreate.push({
+              ...baseTaskData,
+              task_date: taskDate
+            })
+          }
+
+          const { error } = await supabase
+            .from('daily_tasks')
+            .insert(tasksToCreate)
+
+          if (error) throw error
+          toast.success(`Created ${tasksToCreate.length} recurring tasks!`)
+        }
       }
 
       setShowTaskModal(false)
@@ -849,6 +898,49 @@ export default function TasksPage() {
                 />
                 <span className="text-sm text-white/70">This is a bonus task (optional extra credit)</span>
               </label>
+
+              {/* Recurring Options - Only show when creating new tasks */}
+              {!editingTask && (
+                <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                  <label className="block text-sm text-white/70 mb-2">Repeat Task</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <select
+                        value={taskForm.recurrence_type}
+                        onChange={(e) => setTaskForm({ ...taskForm, recurrence_type: e.target.value })}
+                        className="select-dark"
+                      >
+                        <option value="none">No Repeat</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
+                    </div>
+                    {taskForm.recurrence_type !== 'none' && (
+                      <div>
+                        <select
+                          value={taskForm.recurrence_count}
+                          onChange={(e) => setTaskForm({ ...taskForm, recurrence_count: parseInt(e.target.value) })}
+                          className="select-dark"
+                        >
+                          <option value="2">2 times</option>
+                          <option value="4">4 times</option>
+                          <option value="7">7 times</option>
+                          <option value="14">14 times</option>
+                          <option value="30">30 times</option>
+                          <option value="52">52 times</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  {taskForm.recurrence_type !== 'none' && (
+                    <p className="text-xs text-white/50 mt-2">
+                      Will create {taskForm.recurrence_count} tasks starting from {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })},
+                      repeating {taskForm.recurrence_type === 'daily' ? 'every day' : taskForm.recurrence_type === 'weekly' ? 'every week' : 'every month'}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="flex gap-3 justify-end mt-6">
                 <button

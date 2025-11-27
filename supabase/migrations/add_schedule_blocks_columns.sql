@@ -31,6 +31,10 @@ ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN DEFAULT true;
 ALTER TABLE schedule_blocks
 ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 
+-- Add recurrence_type column (none, daily, weekly, monthly)
+ALTER TABLE schedule_blocks
+ADD COLUMN IF NOT EXISTS recurrence_type VARCHAR(20) DEFAULT 'weekly';
+
 -- Create index for faster queries
 CREATE INDEX IF NOT EXISTS idx_schedule_blocks_child_id ON schedule_blocks(child_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_blocks_active ON schedule_blocks(is_active);

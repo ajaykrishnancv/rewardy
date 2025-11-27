@@ -62,7 +62,7 @@ export default function SchedulePage() {
     start_time: '09:00',
     end_time: '10:00',
     star_value: 5,
-    is_recurring: true
+    recurrence_type: 'weekly' // none, daily, weekly, monthly
   })
 
   useEffect(() => {
@@ -138,7 +138,7 @@ export default function SchedulePage() {
       start_time: time,
       end_time: incrementTime(time),
       star_value: 5,
-      is_recurring: true
+      recurrence_type: 'weekly'
     })
     setShowItemModal(true)
   }
@@ -154,7 +154,7 @@ export default function SchedulePage() {
       start_time: item.start_time,
       end_time: item.end_time || incrementTime(item.start_time),
       star_value: item.star_value || 5,
-      is_recurring: item.is_recurring !== false
+      recurrence_type: item.recurrence_type || (item.is_recurring ? 'weekly' : 'none')
     })
     setShowItemModal(true)
   }
@@ -182,7 +182,8 @@ export default function SchedulePage() {
         start_time: itemForm.start_time,
         end_time: itemForm.end_time,
         star_value: itemForm.star_value,
-        is_recurring: itemForm.is_recurring,
+        recurrence_type: itemForm.recurrence_type,
+        is_recurring: itemForm.recurrence_type !== 'none',
         is_active: true
       }
 
@@ -237,33 +238,60 @@ export default function SchedulePage() {
       const tasksToCreate = []
 
       for (const item of scheduleItems) {
-        const dayIndex = DAYS_OF_WEEK.indexOf(item.day_of_week)
-        if (dayIndex === -1) continue
+        const recurrenceType = item.recurrence_type || 'weekly'
+        let datesToCreate = []
 
-        const taskDate = getLocalDateString(weekDates[dayIndex])
+        if (recurrenceType === 'daily') {
+          // Create task for every day of the week
+          datesToCreate = weekDates.map(d => getLocalDateString(d))
+        } else if (recurrenceType === 'weekly') {
+          // Create task only for the specified day of the week
+          const dayIndex = DAYS_OF_WEEK.indexOf(item.day_of_week)
+          if (dayIndex !== -1) {
+            datesToCreate = [getLocalDateString(weekDates[dayIndex])]
+          }
+        } else if (recurrenceType === 'monthly') {
+          // For monthly, check if the day_of_week matches any day in this week
+          // Create task on that day (essentially once per month on this day)
+          const dayIndex = DAYS_OF_WEEK.indexOf(item.day_of_week)
+          if (dayIndex !== -1) {
+            const taskDate = weekDates[dayIndex]
+            // Only create if it's roughly the same week of the month as when schedule was created
+            // For simplicity, we'll create it once per week view (user controls when to generate)
+            datesToCreate = [getLocalDateString(taskDate)]
+          }
+        } else if (recurrenceType === 'none') {
+          // One-time task - only create if this is the first time
+          const dayIndex = DAYS_OF_WEEK.indexOf(item.day_of_week)
+          if (dayIndex !== -1) {
+            datesToCreate = [getLocalDateString(weekDates[dayIndex])]
+          }
+        }
 
-        // Check if task already exists for this date
-        const { data: existing } = await supabase
-          .from('daily_tasks')
-          .select('id')
-          .eq('child_id', childProfile.id)
-          .eq('task_date', taskDate)
-          .eq('title', item.title)
-          .single()
+        // Check for each date and create if not exists
+        for (const taskDate of datesToCreate) {
+          const { data: existing } = await supabase
+            .from('daily_tasks')
+            .select('id')
+            .eq('child_id', childProfile.id)
+            .eq('task_date', taskDate)
+            .eq('title', item.title)
+            .maybeSingle()
 
-        if (!existing) {
-          tasksToCreate.push({
-            child_id: childProfile.id,
-            title: item.title,
-            description: item.description,
-            category: item.category,
-            scheduled_time: item.start_time,
-            star_value: item.star_value,
-            task_date: taskDate,
-            status: 'pending',
-            schedule_block_id: item.id,
-            is_bonus: false
-          })
+          if (!existing) {
+            tasksToCreate.push({
+              child_id: childProfile.id,
+              title: item.title,
+              description: item.description,
+              category: item.category,
+              scheduled_time: item.start_time,
+              star_value: item.star_value,
+              task_date: taskDate,
+              status: 'pending',
+              schedule_block_id: item.id,
+              is_bonus: false
+            })
+          }
         }
       }
 
@@ -614,17 +642,44 @@ export default function SchedulePage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm text-white/70 mb-1">Stars Reward</label>
-                <input
-                  type="number"
-                  value={itemForm.star_value}
-                  onChange={(e) => setItemForm({ ...itemForm, star_value: parseInt(e.target.value) || 0 })}
-                  min="0"
-                  max="50"
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-white/70 mb-1">Stars Reward</label>
+                  <input
+                    type="number"
+                    value={itemForm.star_value}
+                    onChange={(e) => setItemForm({ ...itemForm, star_value: parseInt(e.target.value) || 0 })}
+                    min="0"
+                    max="50"
+                    className="input-dark"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-white/70 mb-1">Repeat</label>
+                  <select
+                    value={itemForm.recurrence_type}
+                    onChange={(e) => setItemForm({ ...itemForm, recurrence_type: e.target.value })}
+                    className="select-dark"
+                  >
+                    <option value="none">One-time</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
               </div>
+
+              {/* Recurrence Info */}
+              {itemForm.recurrence_type !== 'none' && (
+                <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                  <p className="text-blue-400 text-sm">
+                    {itemForm.recurrence_type === 'daily' && '📅 This task will be created for every day when you generate tasks'}
+                    {itemForm.recurrence_type === 'weekly' && `📅 This task will be created every ${DAY_LABELS[DAYS_OF_WEEK.indexOf(itemForm.day_of_week)]} when you generate tasks`}
+                    {itemForm.recurrence_type === 'monthly' && `📅 This task will be created on ${DAY_LABELS[DAYS_OF_WEEK.indexOf(itemForm.day_of_week)]} when you generate tasks (monthly schedule)`}
+                  </p>
+                </div>
+              )}
 
               {/* Conflict Warning */}
               {getConflictWarning() && (

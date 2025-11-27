@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS schedule_blocks (
     star_value INTEGER DEFAULT 1 CHECK (star_value >= 0),
     is_mandatory BOOLEAN DEFAULT true,
     is_recurring BOOLEAN DEFAULT true,
+    recurrence_type VARCHAR(20) DEFAULT 'weekly', -- none, daily, weekly, monthly
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     CONSTRAINT valid_time_range CHECK (end_time > start_time)

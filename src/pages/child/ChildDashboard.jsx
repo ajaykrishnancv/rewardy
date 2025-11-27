@@ -154,16 +154,16 @@ export default function ChildDashboard() {
 
         {/* Currency display */}
         <div className="flex gap-4 mt-4">
-          <div className="star-display">
-            <span className="star-icon text-lg">*</span>
+          <div className="flex items-center gap-1 px-3 py-1 bg-yellow-500/20 rounded-lg">
+            <span className="text-lg">⭐</span>
             <span className="text-white font-bold">{currencyBalance?.wallet_stars || 0}</span>
           </div>
-          <div className="gem-display">
-            <span className="gem-icon text-lg">*</span>
+          <div className="flex items-center gap-1 px-3 py-1 bg-purple-500/20 rounded-lg">
+            <span className="text-lg">💎</span>
             <span className="text-white font-bold">{currencyBalance?.gems || 0}</span>
           </div>
-          <div className="streak-fire">
-            <span className="streak-fire-icon">*</span>
+          <div className="flex items-center gap-1 px-3 py-1 bg-orange-500/20 rounded-lg">
+            <span className="text-lg">🔥</span>
             <span className="text-white font-bold">{streak?.current_streak || 0}</span>
           </div>
         </div>
@@ -189,17 +189,17 @@ export default function ChildDashboard() {
       {/* Quick Stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="glass-card p-4 text-center card-hover">
-          <div className="text-3xl mb-1">*</div>
+          <div className="text-3xl mb-1">📋</div>
           <p className="text-2xl font-bold text-white">{tasksTotal}</p>
           <p className="text-xs text-white/60">Today's Quests</p>
         </div>
         <div className="glass-card p-4 text-center card-hover">
-          <div className="text-3xl mb-1">*</div>
-          <p className="text-2xl font-bold text-star">{currencyBalance?.lifetime_stars_earned || 0}</p>
+          <div className="text-3xl mb-1">⭐</div>
+          <p className="text-2xl font-bold text-yellow-400">{currencyBalance?.lifetime_stars_earned || 0}</p>
           <p className="text-xs text-white/60">Total Stars</p>
         </div>
         <div className="glass-card p-4 text-center card-hover">
-          <div className="text-3xl mb-1">*</div>
+          <div className="text-3xl mb-1">🏦</div>
           <p className="text-2xl font-bold text-blue-400">{currencyBalance?.savings_stars || 0}</p>
           <p className="text-xs text-white/60">Saved Stars</p>
         </div>
@@ -216,7 +216,7 @@ export default function ChildDashboard() {
 
         {todaysTasks.length === 0 ? (
           <div className="text-center py-8">
-            <div className="text-5xl mb-3">*</div>
+            <div className="text-5xl mb-3">🎉</div>
             <p className="text-white/70 font-medium">No quests for today!</p>
             <p className="text-sm text-white/50">Enjoy your free time!</p>
           </div>
@@ -233,16 +233,20 @@ export default function ChildDashboard() {
               >
                 <div className="flex items-center gap-4">
                   {/* Status icon */}
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
                     task.status === 'approved' ? 'bg-green-500/20' :
                     task.status === 'completed' ? 'bg-yellow-500/20' :
                     task.status === 'rejected' ? 'bg-red-500/20' :
                     'bg-white/10'
                   }`}>
-                    {task.status === 'approved' ? 'Done' :
-                     task.status === 'completed' ? '...' :
-                     task.status === 'rejected' ? 'X' :
-                     task.icon || '*'}
+                    {task.status === 'approved' ? '✓' :
+                     task.status === 'completed' ? '⏳' :
+                     task.status === 'rejected' ? '✗' :
+                     task.category === 'academic' ? '📚' :
+                     task.category === 'chores' ? '🧹' :
+                     task.category === 'health' ? '💪' :
+                     task.category === 'creative' ? '🎨' :
+                     task.category === 'social' ? '👥' : '📋'}
                   </div>
 
                   {/* Task info */}
@@ -347,28 +351,28 @@ export default function ChildDashboard() {
           to="/child/quests"
           className="glass-card p-4 text-center card-hover"
         >
-          <div className="text-3xl mb-2">*</div>
+          <div className="text-3xl mb-2">⚔️</div>
           <p className="text-sm text-white/80">My Quests</p>
         </Link>
         <Link
           to="/child/shop"
           className="glass-card p-4 text-center card-hover"
         >
-          <div className="text-3xl mb-2">*</div>
+          <div className="text-3xl mb-2">🛒</div>
           <p className="text-sm text-white/80">Reward Shop</p>
         </Link>
         <Link
           to="/child/bank"
           className="glass-card p-4 text-center card-hover"
         >
-          <div className="text-3xl mb-2">*</div>
+          <div className="text-3xl mb-2">🏦</div>
           <p className="text-sm text-white/80">Star Bank</p>
         </Link>
         <Link
           to="/child/achievements"
           className="glass-card p-4 text-center card-hover"
         >
-          <div className="text-3xl mb-2">*</div>
+          <div className="text-3xl mb-2">🏆</div>
           <p className="text-sm text-white/80">Badges</p>
         </Link>
       </div>
@@ -384,7 +388,7 @@ export default function ChildDashboard() {
                 className="flex-shrink-0 achievement-badge unlocked w-24 h-24"
               >
                 <div className="text-center">
-                  <span className="text-3xl">{ua.achievements?.icon || '*'}</span>
+                  <span className="text-3xl">{ua.achievements?.icon || '🏅'}</span>
                   <p className="text-xs text-white mt-1 truncate">
                     {ua.achievements?.name}
                   </p>

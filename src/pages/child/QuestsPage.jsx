@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
 import {
@@ -37,15 +37,17 @@ export default function QuestsPage() {
   const [streak, setStreak] = useState(null)
   const [showCelebration, setShowCelebration] = useState(false)
   const [celebrationData, setCelebrationData] = useState(null)
+  const initializedRef = useRef(false)
 
   useEffect(() => {
-    if (user?.childProfile?.id) {
+    if (user?.childProfile?.id && !initializedRef.current) {
+      initializedRef.current = true
       initializeAndLoad()
     }
   }, [user?.childProfile?.id])
 
   useEffect(() => {
-    if (user?.childProfile?.id) {
+    if (user?.childProfile?.id && initializedRef.current) {
       loadData()
     }
   }, [selectedDate])
