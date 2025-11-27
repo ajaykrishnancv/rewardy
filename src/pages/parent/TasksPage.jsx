@@ -17,6 +17,14 @@ const TASK_CATEGORIES = [
   { value: 'other', label: 'Other', icon: '📋' }
 ]
 
+// Helper to get local date string (YYYY-MM-DD) without timezone issues
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function TasksPage() {
   const { user, hasPermission } = useAuthStore()
   const canEditSchedule = hasPermission('editSchedule')
@@ -25,7 +33,7 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [childProfile, setChildProfile] = useState(null)
   const [tasks, setTasks] = useState([])
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString())
   const [filterStatus, setFilterStatus] = useState('all')
   const [selectedTasks, setSelectedTasks] = useState([])
 
@@ -453,9 +461,9 @@ export default function TasksPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                const d = new Date(selectedDate)
+                const d = new Date(selectedDate + 'T12:00:00')
                 d.setDate(d.getDate() - 1)
-                setSelectedDate(d.toISOString().split('T')[0])
+                setSelectedDate(getLocalDateString(d))
               }}
               className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
             >
@@ -469,16 +477,16 @@ export default function TasksPage() {
             />
             <button
               onClick={() => {
-                const d = new Date(selectedDate)
+                const d = new Date(selectedDate + 'T12:00:00')
                 d.setDate(d.getDate() + 1)
-                setSelectedDate(d.toISOString().split('T')[0])
+                setSelectedDate(getLocalDateString(d))
               }}
               className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
             >
               →
             </button>
             <button
-              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+              onClick={() => setSelectedDate(getLocalDateString())}
               className="px-3 py-2 text-sm bg-white/10 rounded-lg hover:bg-white/20 transition-colors text-white/70"
             >
               Today

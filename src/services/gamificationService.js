@@ -1,5 +1,13 @@
 import { supabase } from '../lib/supabase'
 
+// Helper to get local date string (YYYY-MM-DD) without timezone issues
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // =====================================================
 // QUEST GENERATION
 // =====================================================
@@ -89,7 +97,7 @@ function getRandomInRange(min, max) {
 }
 
 export async function generateDailyQuests(childId) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateString()
 
   // Check if daily quests already exist for today
   const { data: existingQuests } = await supabase
@@ -153,12 +161,12 @@ export async function generateWeeklyQuests(childId) {
   // Calculate start of week (Sunday)
   const weekStart = new Date(today)
   weekStart.setDate(today.getDate() - dayOfWeek)
-  const weekStartStr = weekStart.toISOString().split('T')[0]
+  const weekStartStr = getLocalDateString(weekStart)
 
   // Calculate end of week (Saturday)
   const weekEnd = new Date(weekStart)
   weekEnd.setDate(weekStart.getDate() + 6)
-  const weekEndStr = weekEnd.toISOString().split('T')[0]
+  const weekEndStr = getLocalDateString(weekEnd)
 
   // Check if weekly quests already exist for this week
   const { data: existingQuests } = await supabase
@@ -219,7 +227,7 @@ export async function generateWeeklyQuests(childId) {
 // =====================================================
 
 export async function updateQuestProgress(childId, eventType, eventData = {}) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateString()
 
   // Get active quests
   const { data: activeQuests } = await supabase
@@ -497,7 +505,7 @@ async function getChildStats(childId) {
 // =====================================================
 
 export async function updateStreak(childId) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateString()
 
   // Check if any task was completed today
   const { data: todaysTasks } = await supabase
@@ -521,7 +529,7 @@ export async function updateStreak(childId) {
 
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
-  const yesterdayStr = yesterday.toISOString().split('T')[0]
+  const yesterdayStr = getLocalDateString(yesterday)
 
   if (!existingStreak) {
     // Create new streak
@@ -719,7 +727,7 @@ function getCategoryColor(category) {
 // =====================================================
 
 export async function expireOldQuests(childId) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateString()
 
   // Mark expired quests as completed (but not achieved)
   const { data } = await supabase

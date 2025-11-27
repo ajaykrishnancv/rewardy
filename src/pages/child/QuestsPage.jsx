@@ -20,12 +20,20 @@ const TASK_CATEGORIES = [
   { value: 'other', label: 'Other', icon: '📋' }
 ]
 
+// Helper to get local date string (YYYY-MM-DD) without timezone issues
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function QuestsPage() {
   const { user } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [todaysTasks, setTodaysTasks] = useState([])
   const [activeQuests, setActiveQuests] = useState([])
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString())
   const [streak, setStreak] = useState(null)
   const [showCelebration, setShowCelebration] = useState(false)
   const [celebrationData, setCelebrationData] = useState(null)
@@ -68,7 +76,7 @@ export default function QuestsPage() {
       setTodaysTasks(tasks || [])
 
       // Load active quests/challenges
-      const today = new Date().toISOString().split('T')[0]
+      const today = getLocalDateString()
       const { data: quests } = await supabase
         .from('quests')
         .select('*')
@@ -163,7 +171,7 @@ export default function QuestsPage() {
   }
 
   const completionRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0
-  const isToday = selectedDate === new Date().toISOString().split('T')[0]
+  const isToday = selectedDate === getLocalDateString()
 
   if (loading) {
     return (
@@ -196,9 +204,9 @@ export default function QuestsPage() {
         <div className="flex items-center justify-between">
           <button
             onClick={() => {
-              const d = new Date(selectedDate)
+              const d = new Date(selectedDate + 'T12:00:00')
               d.setDate(d.getDate() - 1)
-              setSelectedDate(d.toISOString().split('T')[0])
+              setSelectedDate(getLocalDateString(d))
             }}
             className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
           >
@@ -206,11 +214,11 @@ export default function QuestsPage() {
           </button>
           <div className="text-center">
             <p className="text-white font-medium">
-              {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
             {!isToday && (
               <button
-                onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                onClick={() => setSelectedDate(getLocalDateString())}
                 className="text-sm text-neon-blue hover:underline"
               >
                 Back to Today
@@ -219,9 +227,9 @@ export default function QuestsPage() {
           </div>
           <button
             onClick={() => {
-              const d = new Date(selectedDate)
+              const d = new Date(selectedDate + 'T12:00:00')
               d.setDate(d.getDate() + 1)
-              setSelectedDate(d.toISOString().split('T')[0])
+              setSelectedDate(getLocalDateString(d))
             }}
             className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
           >

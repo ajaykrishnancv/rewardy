@@ -3,6 +3,14 @@ import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
+// Helper to get local date string (YYYY-MM-DD) without timezone issues
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const REWARD_CATEGORIES = [
   { value: 'screen_time', label: 'Screen Time', icon: '📱' },
   { value: 'activity', label: 'Activity', icon: '🎮' },
@@ -66,7 +74,7 @@ export default function ShopPage() {
       setPendingRedemptions(redemptions || [])
 
       // Load today's redemptions for daily limit checking
-      const today = new Date().toISOString().split('T')[0]
+      const today = getLocalDateString()
       const { data: todayData } = await supabase
         .from('redemptions')
         .select('reward_id, requested_at')

@@ -71,7 +71,6 @@ export default function ParentDashboard() {
         setStreak(streakData)
 
         // Load pending tasks (completed, awaiting approval)
-        const today = new Date().toISOString().split('T')[0]
         const { data: tasks } = await supabase
           .from('daily_tasks')
           .select('*')

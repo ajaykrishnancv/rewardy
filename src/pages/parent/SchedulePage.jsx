@@ -6,6 +6,14 @@ import toast from 'react-hot-toast'
 const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
+// Helper to get local date string (YYYY-MM-DD) without timezone issues
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const TIME_SLOTS = [
   '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00',
   '00:00', '01:00', '02:00', '03:00', '04:00'
@@ -232,7 +240,7 @@ export default function SchedulePage() {
         const dayIndex = DAYS_OF_WEEK.indexOf(item.day_of_week)
         if (dayIndex === -1) continue
 
-        const taskDate = weekDates[dayIndex].toISOString().split('T')[0]
+        const taskDate = getLocalDateString(weekDates[dayIndex])
 
         // Check if task already exists for this date
         const { data: existing } = await supabase

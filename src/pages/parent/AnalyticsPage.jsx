@@ -7,6 +7,14 @@ import {
 } from 'recharts'
 import toast from 'react-hot-toast'
 
+// Helper to get local date string (YYYY-MM-DD) without timezone issues
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899']
 
 const DATE_RANGES = [
@@ -79,10 +87,10 @@ export default function AnalyticsPage() {
     }
 
     return {
-      start: startDate.toISOString().split('T')[0],
-      end: now.toISOString().split('T')[0],
-      previousStart: previousStartDate?.toISOString().split('T')[0],
-      previousEnd: previousEndDate?.toISOString().split('T')[0]
+      start: getLocalDateString(startDate),
+      end: getLocalDateString(now),
+      previousStart: previousStartDate ? getLocalDateString(previousStartDate) : null,
+      previousEnd: previousEndDate ? getLocalDateString(previousEndDate) : null
     }
   }
 
@@ -239,11 +247,11 @@ export default function AnalyticsPage() {
 
   function getDaysInRange(start, end) {
     const days = []
-    const current = new Date(start)
-    const endDate = new Date(end)
+    const current = new Date(start + 'T12:00:00')
+    const endDate = new Date(end + 'T12:00:00')
 
     while (current <= endDate) {
-      days.push(current.toISOString().split('T')[0])
+      days.push(getLocalDateString(current))
       current.setDate(current.getDate() + 1)
     }
 
