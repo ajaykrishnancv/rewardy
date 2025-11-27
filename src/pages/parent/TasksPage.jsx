@@ -50,7 +50,7 @@ export default function TasksPage() {
     star_value: 5,
     is_bonus: false,
     recurrence_type: 'none', // none, daily, weekly, monthly
-    recurrence_count: 4 // number of occurrences to create
+    recurrence_count: 7 // number of occurrences to create
   })
 
   useEffect(() => {
@@ -101,7 +101,7 @@ export default function TasksPage() {
       star_value: 5,
       is_bonus: false,
       recurrence_type: 'none',
-      recurrence_count: 4
+      recurrence_count: 7
     })
     setShowTaskModal(true)
   }
@@ -116,7 +116,7 @@ export default function TasksPage() {
       star_value: task.star_value || 5,
       is_bonus: task.is_bonus || false,
       recurrence_type: 'none', // Don't show recurrence when editing
-      recurrence_count: 4
+      recurrence_count: 7
     })
     setShowTaskModal(true)
   }
@@ -910,10 +910,10 @@ export default function TasksPage() {
                         onChange={(e) => setTaskForm({ ...taskForm, recurrence_type: e.target.value })}
                         className="select-dark"
                       >
-                        <option value="none">No Repeat</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
+                        <option value="none">One-time (No Repeat)</option>
+                        <option value="daily">Every Day</option>
+                        <option value="weekly">Every Week</option>
+                        <option value="monthly">Every Month</option>
                       </select>
                     </div>
                     {taskForm.recurrence_type !== 'none' && (
@@ -923,20 +923,19 @@ export default function TasksPage() {
                           onChange={(e) => setTaskForm({ ...taskForm, recurrence_count: parseInt(e.target.value) })}
                           className="select-dark"
                         >
-                          <option value="2">2 times</option>
-                          <option value="4">4 times</option>
-                          <option value="7">7 times</option>
-                          <option value="14">14 times</option>
-                          <option value="30">30 times</option>
-                          <option value="52">52 times</option>
+                          <option value="7">For {taskForm.recurrence_type === 'daily' ? '1 week' : taskForm.recurrence_type === 'weekly' ? '7 weeks' : '7 months'}</option>
+                          <option value="14">For {taskForm.recurrence_type === 'daily' ? '2 weeks' : taskForm.recurrence_type === 'weekly' ? '14 weeks' : '14 months'}</option>
+                          <option value="30">For {taskForm.recurrence_type === 'daily' ? '1 month' : taskForm.recurrence_type === 'weekly' ? '30 weeks' : '30 months'}</option>
+                          <option value="60">For {taskForm.recurrence_type === 'daily' ? '2 months' : taskForm.recurrence_type === 'weekly' ? '60 weeks' : '60 months'}</option>
                         </select>
                       </div>
                     )}
                   </div>
                   {taskForm.recurrence_type !== 'none' && (
                     <p className="text-xs text-white/50 mt-2">
-                      Will create {taskForm.recurrence_count} tasks starting from {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })},
-                      repeating {taskForm.recurrence_type === 'daily' ? 'every day' : taskForm.recurrence_type === 'weekly' ? 'every week' : 'every month'}
+                      {taskForm.recurrence_type === 'daily' && `Creates this task every day for ${taskForm.recurrence_count} days, starting ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                      {taskForm.recurrence_type === 'weekly' && `Creates this task every ${new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })} for ${taskForm.recurrence_count} weeks`}
+                      {taskForm.recurrence_type === 'monthly' && `Creates this task on the ${new Date(selectedDate + 'T12:00:00').getDate()}${['th','st','nd','rd'][(new Date(selectedDate + 'T12:00:00').getDate() % 10 > 3 || [11,12,13].includes(new Date(selectedDate + 'T12:00:00').getDate())) ? 0 : new Date(selectedDate + 'T12:00:00').getDate() % 10]} of each month for ${taskForm.recurrence_count} months`}
                     </p>
                   )}
                 </div>
