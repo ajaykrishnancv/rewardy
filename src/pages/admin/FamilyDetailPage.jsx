@@ -28,6 +28,15 @@ const ROLE_ICONS = {
   child: '🧒'
 }
 
+// Helper to get role display name
+function getRoleLabel(role) {
+  return ROLE_LABELS[role] || role
+}
+
+function getRoleIcon(role) {
+  return ROLE_ICONS[role] || '👤'
+}
+
 export default function FamilyDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -46,7 +55,7 @@ export default function FamilyDetailPage() {
 
   // Form states
   const [familyForm, setFamilyForm] = useState({ displayName: '', timezone: '' })
-  const [childForm, setChildForm] = useState({ displayName: '', dateOfBirth: '', gradeLevel: '' })
+  const [childForm, setChildForm] = useState({ displayName: '', dateOfBirth: '', grade: '' })
   const [roleForm, setRoleForm] = useState({ roleLabel: '' })
 
   // Password reset modal
@@ -83,7 +92,7 @@ export default function FamilyDetailPage() {
         .from('family_roles')
         .select('*')
         .eq('family_id', id)
-        .order('role_type')
+        .order('role')
 
       if (rolesError) throw rolesError
       setRoles(rolesData)
@@ -100,7 +109,7 @@ export default function FamilyDetailPage() {
         setChildForm({
           displayName: childData.display_name,
           dateOfBirth: childData.date_of_birth || '',
-          gradeLevel: childData.grade_level || ''
+          grade: childData.grade || ''
         })
       }
 
@@ -149,7 +158,7 @@ export default function FamilyDetailPage() {
         .update({
           display_name: childForm.displayName,
           date_of_birth: childForm.dateOfBirth || null,
-          grade_level: childForm.gradeLevel || null,
+          grade: childForm.grade || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', childProfile.id)
@@ -160,7 +169,7 @@ export default function FamilyDetailPage() {
         ...prev,
         display_name: childForm.displayName,
         date_of_birth: childForm.dateOfBirth,
-        grade_level: childForm.gradeLevel
+        grade: childForm.grade
       }))
       setEditingChild(false)
       toast.success('Child profile updated successfully')
@@ -262,28 +271,38 @@ export default function FamilyDetailPage() {
     try {
       setSaving(true)
 
-      // Delete in order: currency_balances, child_profiles, sessions, family_roles, streaks, then family
-      const { error: balanceError } = await supabase
-        .from('currency_balances')
-        .delete()
+      // First get child profiles for this family
+      const { data: childProfiles } = await supabase
+        .from('child_profiles')
+        .select('id')
         .eq('family_id', id)
 
-      const { error: childError } = await supabase
+      const childIds = childProfiles?.map(c => c.id) || []
+
+      // Delete in order: currency_balances (by child_id), streaks (by child_id), child_profiles, sessions, family_roles, then family
+      if (childIds.length > 0) {
+        await supabase
+          .from('currency_balances')
+          .delete()
+          .in('child_id', childIds)
+
+        await supabase
+          .from('streaks')
+          .delete()
+          .in('child_id', childIds)
+      }
+
+      await supabase
         .from('child_profiles')
         .delete()
         .eq('family_id', id)
 
-      const { error: sessionError } = await supabase
+      await supabase
         .from('sessions')
         .delete()
         .eq('family_id', id)
 
-      const { error: streakError } = await supabase
-        .from('streaks')
-        .delete()
-        .eq('family_id', id)
-
-      const { error: rolesError } = await supabase
+      await supabase
         .from('family_roles')
         .delete()
         .eq('family_id', id)
@@ -516,12 +535,12 @@ export default function FamilyDetailPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Grade Level
+                    Grade
                   </label>
                   <input
                     type="text"
-                    value={childForm.gradeLevel}
-                    onChange={(e) => setChildForm(prev => ({ ...prev, gradeLevel: e.target.value }))}
+                    value={childForm.grade}
+                    onChange={(e) => setChildForm(prev => ({ ...prev, grade: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     placeholder="e.g., 5th Grade"
                   />
@@ -541,7 +560,7 @@ export default function FamilyDetailPage() {
                       setChildForm({
                         displayName: childProfile.display_name,
                         dateOfBirth: childProfile.date_of_birth || '',
-                        gradeLevel: childProfile.grade_level || ''
+                        grade: childProfile.grade || ''
                       })
                     }}
                     className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
@@ -565,8 +584,8 @@ export default function FamilyDetailPage() {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Grade Level</span>
-                  <span className="text-gray-900">{childProfile.grade_level || 'Not set'}</span>
+                  <span className="text-gray-600">Grade</span>
+                  <span className="text-gray-900">{childProfile.grade || 'Not set'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Avatar</span>
@@ -599,8 +618,8 @@ export default function FamilyDetailPage() {
                 <tr key={role.id} className="hover:bg-gray-50">
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">{ROLE_ICONS[role.role_type]}</span>
-                      <span className="font-medium text-gray-900">{ROLE_LABELS[role.role_type]}</span>
+                      <span className="text-xl">{getRoleIcon(role.role)}</span>
+                      <span className="font-medium text-gray-900">{getRoleLabel(role.role)}</span>
                     </div>
                   </td>
                   <td className="py-3 px-4">
@@ -633,15 +652,15 @@ export default function FamilyDetailPage() {
                       </div>
                     ) : (
                       <span className="text-gray-600">
-                        {role.role_label || ROLE_LABELS[role.role_type]}
+                        {role.role_label || getRoleLabel(role.role)}
                       </span>
                     )}
                   </td>
                   <td className="py-3 px-4">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      role.is_enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                      role.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
                     }`}>
-                      {role.is_enabled ? 'Enabled' : 'Disabled'}
+                      {role.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td className="py-3 px-4 text-right">
@@ -684,7 +703,7 @@ export default function FamilyDetailPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Reset Password for {ROLE_LABELS[resetPasswordModal.role?.role_type]}
+              Reset Password for {getRoleLabel(resetPasswordModal.role?.role)}
             </h3>
 
             <div className="space-y-4">
@@ -758,9 +777,9 @@ export default function FamilyDetailPage() {
                 {roles.map(role => (
                   <div key={role.id} className="p-4 bg-gray-50 rounded-xl">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xl">{ROLE_ICONS[role.role_type]}</span>
+                      <span className="text-xl">{getRoleIcon(role.role)}</span>
                       <span className="font-medium text-gray-900">
-                        {role.role_label || ROLE_LABELS[role.role_type]}
+                        {role.role_label || getRoleLabel(role.role)}
                       </span>
                     </div>
                     <p className="text-xs text-gray-500">Password needs to be reset to view</p>

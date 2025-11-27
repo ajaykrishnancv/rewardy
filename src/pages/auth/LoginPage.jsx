@@ -63,10 +63,10 @@ export default function LoginPage() {
     try {
       const { data, error } = await supabase
         .from('family_roles')
-        .select('id, role_type, role_label')
+        .select('id, role, role_label')
         .eq('family_id', familyId)
-        .eq('is_enabled', true)
-        .order('role_type')
+        .eq('is_active', true)
+        .order('role')
 
       if (error) throw error
       setRoles(data || [])
@@ -138,8 +138,8 @@ export default function LoginPage() {
               {!selectedFamily ? 'Select family first' : 'Select your role'}
             </option>
             {roles.map((role) => (
-              <option key={role.id} value={role.role_type}>
-                {role.role_label || formatRoleType(role.role_type)}
+              <option key={role.id} value={role.role}>
+                {role.role_label || formatRoleType(role.role)}
               </option>
             ))}
           </select>

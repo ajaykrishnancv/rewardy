@@ -1,18 +1,567 @@
+import { useState, useEffect } from 'react'
+import { useAuthStore } from '../../stores/authStore'
+import { supabase } from '../../lib/supabase'
+import toast from 'react-hot-toast'
+
+const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+const TIME_SLOTS = [
+  '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00',
+  '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'
+]
+
+const TASK_CATEGORIES = [
+  { value: 'academic', label: 'Academic', icon: '📚', color: 'bg-blue-500/20 border-blue-500/40' },
+  { value: 'chores', label: 'Chores', icon: '🧹', color: 'bg-orange-500/20 border-orange-500/40' },
+  { value: 'health', label: 'Health', icon: '💪', color: 'bg-green-500/20 border-green-500/40' },
+  { value: 'creative', label: 'Creative', icon: '🎨', color: 'bg-purple-500/20 border-purple-500/40' },
+  { value: 'social', label: 'Social', icon: '👥', color: 'bg-pink-500/20 border-pink-500/40' },
+  { value: 'other', label: 'Other', icon: '📋', color: 'bg-gray-500/20 border-gray-500/40' }
+]
+
 export default function SchedulePage() {
+  const { user, hasPermission } = useAuthStore()
+  const canEditSchedule = hasPermission('editSchedule')
+
+  const [loading, setLoading] = useState(true)
+  const [childProfile, setChildProfile] = useState(null)
+  const [scheduleItems, setScheduleItems] = useState([])
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    const today = new Date()
+    const dayOfWeek = today.getDay()
+    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    const monday = new Date(today)
+    monday.setDate(today.getDate() + diff)
+    monday.setHours(0, 0, 0, 0)
+    return monday
+  })
+
+  // Modal state
+  const [showItemModal, setShowItemModal] = useState(false)
+  const [editingItem, setEditingItem] = useState(null)
+  const [selectedSlot, setSelectedSlot] = useState(null)
+
+  // Form state
+  const [itemForm, setItemForm] = useState({
+    title: '',
+    description: '',
+    category: 'academic',
+    day_of_week: 'monday',
+    start_time: '09:00',
+    end_time: '10:00',
+    stars_reward: 5,
+    is_recurring: true
+  })
+
+  useEffect(() => {
+    if (user?.familyId) {
+      loadData()
+    }
+  }, [user?.familyId])
+
+  async function loadData() {
+    try {
+      setLoading(true)
+
+      // Load child profile
+      const { data: child } = await supabase
+        .from('child_profiles')
+        .select('*')
+        .eq('family_id', user.familyId)
+        .single()
+
+      setChildProfile(child)
+
+      if (child) {
+        // Load schedule items
+        const { data: items } = await supabase
+          .from('schedule_items')
+          .select('*')
+          .eq('child_id', child.id)
+          .eq('is_active', true)
+          .order('start_time')
+
+        setScheduleItems(items || [])
+      }
+    } catch (error) {
+      console.error('Error loading schedule:', error)
+      toast.error('Failed to load schedule')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function getWeekDates() {
+    return DAYS_OF_WEEK.map((_, index) => {
+      const date = new Date(currentWeekStart)
+      date.setDate(currentWeekStart.getDate() + index)
+      return date
+    })
+  }
+
+  function navigateWeek(direction) {
+    const newDate = new Date(currentWeekStart)
+    newDate.setDate(currentWeekStart.getDate() + (direction * 7))
+    setCurrentWeekStart(newDate)
+  }
+
+  function goToCurrentWeek() {
+    const today = new Date()
+    const dayOfWeek = today.getDay()
+    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    const monday = new Date(today)
+    monday.setDate(today.getDate() + diff)
+    monday.setHours(0, 0, 0, 0)
+    setCurrentWeekStart(monday)
+  }
+
+  function openCreateItem(day, time) {
+    setEditingItem(null)
+    setSelectedSlot({ day, time })
+    setItemForm({
+      title: '',
+      description: '',
+      category: 'academic',
+      day_of_week: day,
+      start_time: time,
+      end_time: incrementTime(time),
+      stars_reward: 5,
+      is_recurring: true
+    })
+    setShowItemModal(true)
+  }
+
+  function openEditItem(item) {
+    setEditingItem(item)
+    setSelectedSlot(null)
+    setItemForm({
+      title: item.title,
+      description: item.description || '',
+      category: item.category || 'other',
+      day_of_week: item.day_of_week,
+      start_time: item.start_time,
+      end_time: item.end_time || incrementTime(item.start_time),
+      stars_reward: item.stars_reward || 5,
+      is_recurring: item.is_recurring !== false
+    })
+    setShowItemModal(true)
+  }
+
+  function incrementTime(time) {
+    const [hours, minutes] = time.split(':').map(Number)
+    const newHours = (hours + 1) % 24
+    return `${String(newHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+  }
+
+  async function handleSaveItem() {
+    if (!itemForm.title.trim()) {
+      toast.error('Please enter a title')
+      return
+    }
+
+    try {
+      const itemData = {
+        child_id: childProfile.id,
+        family_id: user.familyId,
+        title: itemForm.title.trim(),
+        description: itemForm.description.trim() || null,
+        category: itemForm.category,
+        day_of_week: itemForm.day_of_week,
+        start_time: itemForm.start_time,
+        end_time: itemForm.end_time,
+        stars_reward: itemForm.stars_reward,
+        is_recurring: itemForm.is_recurring,
+        is_active: true
+      }
+
+      if (editingItem) {
+        const { error } = await supabase
+          .from('schedule_items')
+          .update(itemData)
+          .eq('id', editingItem.id)
+
+        if (error) throw error
+        toast.success('Schedule item updated!')
+      } else {
+        const { error } = await supabase
+          .from('schedule_items')
+          .insert(itemData)
+
+        if (error) throw error
+        toast.success('Schedule item created!')
+      }
+
+      setShowItemModal(false)
+      loadData()
+    } catch (error) {
+      console.error('Error saving schedule item:', error)
+      toast.error('Failed to save schedule item')
+    }
+  }
+
+  async function handleDeleteItem(item) {
+    if (!confirm('Are you sure you want to delete this schedule item?')) return
+
+    try {
+      const { error } = await supabase
+        .from('schedule_items')
+        .update({ is_active: false })
+        .eq('id', item.id)
+
+      if (error) throw error
+      toast.success('Schedule item deleted')
+      loadData()
+    } catch (error) {
+      console.error('Error deleting item:', error)
+      toast.error('Failed to delete item')
+    }
+  }
+
+  async function generateTasksForWeek() {
+    if (!confirm('Generate daily tasks for this week based on the schedule? Existing tasks will not be duplicated.')) return
+
+    try {
+      const weekDates = getWeekDates()
+      const tasksToCreate = []
+
+      for (const item of scheduleItems) {
+        const dayIndex = DAYS_OF_WEEK.indexOf(item.day_of_week)
+        if (dayIndex === -1) continue
+
+        const taskDate = weekDates[dayIndex].toISOString().split('T')[0]
+
+        // Check if task already exists for this date
+        const { data: existing } = await supabase
+          .from('daily_tasks')
+          .select('id')
+          .eq('child_id', childProfile.id)
+          .eq('task_date', taskDate)
+          .eq('title', item.title)
+          .single()
+
+        if (!existing) {
+          tasksToCreate.push({
+            child_id: childProfile.id,
+            family_id: user.familyId,
+            title: item.title,
+            description: item.description,
+            category: item.category,
+            scheduled_time: item.start_time,
+            stars_reward: item.stars_reward,
+            task_date: taskDate,
+            status: 'pending',
+            schedule_item_id: item.id
+          })
+        }
+      }
+
+      if (tasksToCreate.length > 0) {
+        const { error } = await supabase
+          .from('daily_tasks')
+          .insert(tasksToCreate)
+
+        if (error) throw error
+        toast.success(`Created ${tasksToCreate.length} tasks for this week!`)
+      } else {
+        toast.success('All tasks for this week already exist!')
+      }
+    } catch (error) {
+      console.error('Error generating tasks:', error)
+      toast.error('Failed to generate tasks')
+    }
+  }
+
+  function getItemsForDayAndTime(day, time) {
+    return scheduleItems.filter(item => {
+      if (item.day_of_week !== day) return false
+      const itemHour = parseInt(item.start_time.split(':')[0])
+      const slotHour = parseInt(time.split(':')[0])
+      return itemHour === slotHour
+    })
+  }
+
+  const getCategoryInfo = (category) => {
+    return TASK_CATEGORIES.find(c => c.value === category) || TASK_CATEGORIES[5]
+  }
+
+  const weekDates = getWeekDates()
+  const isCurrentWeek = weekDates[0].toDateString() === new Date(currentWeekStart).toDateString()
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="spinner" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="glass-card p-6">
-        <h1 className="text-2xl font-bold text-white mb-1">Schedule</h1>
-        <p className="text-white/70">Manage weekly timetable and routines</p>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-1">Weekly Schedule</h1>
+            <p className="text-white/70">
+              {childProfile?.display_name}'s recurring timetable
+            </p>
+          </div>
+          {canEditSchedule && (
+            <div className="flex gap-2">
+              <button
+                onClick={generateTasksForWeek}
+                className="px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
+              >
+                📋 Generate Tasks
+              </button>
+              <button
+                onClick={() => openCreateItem('monday', '09:00')}
+                className="px-4 py-2 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl hover:opacity-90 transition-opacity"
+              >
+                + Add Item
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="glass-card p-8 text-center">
-        <div className="text-5xl mb-4">📅</div>
-        <h2 className="text-xl font-semibold text-white mb-2">Coming Soon</h2>
-        <p className="text-white/60">
-          Weekly timetable editor with drag-and-drop functionality
-        </p>
+      {/* Week Navigation */}
+      <div className="glass-card p-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigateWeek(-1)}
+            className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
+          >
+            ← Previous
+          </button>
+          <div className="text-center">
+            <p className="text-white font-medium">
+              {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </p>
+            {!isCurrentWeek && (
+              <button
+                onClick={goToCurrentWeek}
+                className="text-sm text-neon-blue hover:underline mt-1"
+              >
+                Back to current week
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => navigateWeek(1)}
+            className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
+          >
+            Next →
+          </button>
+        </div>
       </div>
+
+      {/* Schedule Grid */}
+      <div className="glass-card p-4 overflow-x-auto">
+        <table className="w-full min-w-[800px]">
+          <thead>
+            <tr>
+              <th className="w-20 p-2 text-left text-white/60 text-sm">Time</th>
+              {DAYS_OF_WEEK.map((day, index) => {
+                const date = weekDates[index]
+                const isToday = date.toDateString() === new Date().toDateString()
+                return (
+                  <th key={day} className={`p-2 text-center ${isToday ? 'text-neon-blue' : 'text-white/80'}`}>
+                    <div className="font-medium">{DAY_LABELS[index]}</div>
+                    <div className={`text-sm ${isToday ? 'text-neon-blue' : 'text-white/50'}`}>
+                      {date.getDate()}
+                    </div>
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {TIME_SLOTS.map(time => (
+              <tr key={time} className="border-t border-white/10">
+                <td className="p-2 text-white/50 text-sm">{time}</td>
+                {DAYS_OF_WEEK.map(day => {
+                  const items = getItemsForDayAndTime(day, time)
+                  return (
+                    <td key={`${day}-${time}`} className="p-1 align-top min-h-[60px]">
+                      <div className="min-h-[50px]">
+                        {items.map(item => {
+                          const category = getCategoryInfo(item.category)
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => canEditSchedule && openEditItem(item)}
+                              className={`p-2 rounded-lg border text-xs mb-1 ${category.color} ${canEditSchedule ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
+                            >
+                              <div className="flex items-center gap-1">
+                                <span>{category.icon}</span>
+                                <span className="font-medium text-white truncate">{item.title}</span>
+                              </div>
+                              <div className="text-white/60 mt-1">
+                                {item.start_time} - {item.end_time}
+                              </div>
+                              <div className="text-yellow-400 mt-1">+{item.stars_reward}⭐</div>
+                            </div>
+                          )
+                        })}
+                        {items.length === 0 && canEditSchedule && (
+                          <button
+                            onClick={() => openCreateItem(day, time)}
+                            className="w-full h-full min-h-[50px] rounded-lg border border-dashed border-white/10 hover:border-white/30 hover:bg-white/5 transition-all flex items-center justify-center text-white/30 hover:text-white/50"
+                          >
+                            +
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend */}
+      <div className="glass-card p-4">
+        <p className="text-sm text-white/60 mb-3">Categories:</p>
+        <div className="flex flex-wrap gap-3">
+          {TASK_CATEGORIES.map(cat => (
+            <div key={cat.value} className={`px-3 py-1 rounded-lg border ${cat.color} flex items-center gap-2`}>
+              <span>{cat.icon}</span>
+              <span className="text-sm text-white">{cat.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Schedule Item Modal */}
+      {showItemModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-white mb-4">
+              {editingItem ? 'Edit Schedule Item' : 'Add Schedule Item'}
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-white/70 mb-1">Title *</label>
+                <input
+                  type="text"
+                  value={itemForm.title}
+                  onChange={(e) => setItemForm({ ...itemForm, title: e.target.value })}
+                  placeholder="e.g., Math Lesson"
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-neon-blue"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-white/70 mb-1">Description</label>
+                <textarea
+                  value={itemForm.description}
+                  onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
+                  placeholder="Optional details"
+                  rows={2}
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-neon-blue resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-white/70 mb-1">Day</label>
+                  <select
+                    value={itemForm.day_of_week}
+                    onChange={(e) => setItemForm({ ...itemForm, day_of_week: e.target.value })}
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                  >
+                    {DAYS_OF_WEEK.map((day, i) => (
+                      <option key={day} value={day}>{DAY_LABELS[i]}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-white/70 mb-1">Category</label>
+                  <select
+                    value={itemForm.category}
+                    onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                  >
+                    {TASK_CATEGORIES.map(cat => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.icon} {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-white/70 mb-1">Start Time</label>
+                  <input
+                    type="time"
+                    value={itemForm.start_time}
+                    onChange={(e) => setItemForm({ ...itemForm, start_time: e.target.value })}
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-white/70 mb-1">End Time</label>
+                  <input
+                    type="time"
+                    value={itemForm.end_time}
+                    onChange={(e) => setItemForm({ ...itemForm, end_time: e.target.value })}
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-white/70 mb-1">Stars Reward</label>
+                <input
+                  type="number"
+                  value={itemForm.stars_reward}
+                  onChange={(e) => setItemForm({ ...itemForm, stars_reward: parseInt(e.target.value) || 0 })}
+                  min="0"
+                  max="50"
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-between mt-6">
+                {editingItem && (
+                  <button
+                    onClick={() => {
+                      handleDeleteItem(editingItem)
+                      setShowItemModal(false)
+                    }}
+                    className="px-4 py-2 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500/30 transition-colors"
+                  >
+                    Delete
+                  </button>
+                )}
+                <div className="flex gap-3 ml-auto">
+                  <button
+                    onClick={() => setShowItemModal(false)}
+                    className="px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveItem}
+                    className="px-4 py-2 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl hover:opacity-90 transition-opacity"
+                  >
+                    {editingItem ? 'Save Changes' : 'Add Item'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
