@@ -313,7 +313,7 @@ export default function ParentDashboard() {
               Welcome, {user?.roleLabel || 'Parent'}!
             </h1>
             <p className="text-white/70">
-              {user?.familyName} Family Dashboard
+              {user?.familyName} Dashboard
             </p>
           </div>
           {childProfile && (

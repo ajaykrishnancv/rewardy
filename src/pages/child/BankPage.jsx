@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
+import {
+  updateQuestProgress,
+  checkAchievements
+} from '../../services/gamificationService'
 import toast from 'react-hot-toast'
 
 const INTEREST_TIERS = [
@@ -26,6 +30,8 @@ export default function BankPage() {
     target_amount: 100,
     icon: '🎯'
   })
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [celebrationMessage, setCelebrationMessage] = useState('')
 
   useEffect(() => {
     if (user?.childProfile?.id) {
@@ -135,6 +141,16 @@ export default function BankPage() {
         description: transferType === 'deposit' ? 'Deposited to savings' : 'Withdrawn from savings'
       })
 
+      // Update quest progress if depositing
+      if (transferType === 'deposit') {
+        await updateQuestProgress(user.childProfile.id, 'stars_saved', {
+          amount: amount
+        })
+      }
+
+      // Check for new achievements (savings milestones)
+      await checkAchievements(user.childProfile.id)
+
       toast.success(transferType === 'deposit' ? 'Deposited to savings!' : 'Withdrawn from savings!')
       setShowTransferModal(false)
       setTransferAmount('')
@@ -192,6 +208,87 @@ export default function BankPage() {
     } catch (error) {
       console.error('Error deleting goal:', error)
       toast.error('Failed to delete goal')
+    }
+  }
+
+  async function handleCompleteGoal(goal) {
+    if (!confirm(`Mark "${goal.name}" as complete? This will not deduct any stars - it's just for tracking.`)) return
+
+    try {
+      const { error } = await supabase
+        .from('savings_goals')
+        .update({
+          is_completed: true,
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', goal.id)
+
+      if (error) throw error
+
+      // Check for goal completion achievement
+      await checkAchievements(user.childProfile.id)
+
+      // Show celebration
+      setCelebrationMessage(`Congratulations! You reached your "${goal.name}" goal!`)
+      setShowCelebration(true)
+      setTimeout(() => setShowCelebration(false), 4000)
+
+      loadData()
+    } catch (error) {
+      console.error('Error completing goal:', error)
+      toast.error('Failed to complete goal')
+    }
+  }
+
+  // Check if there's pending interest to collect (for demo/manual trigger)
+  async function handleCollectInterest() {
+    const savings = currencyBalance?.savings_stars || 0
+    if (savings <= 0) {
+      toast.error('No savings to earn interest on!')
+      return
+    }
+
+    const tier = getCurrentTier()
+    const interest = Math.floor(savings * (tier.rate / 100))
+
+    if (interest <= 0) {
+      toast.error('Not enough savings for interest')
+      return
+    }
+
+    if (!confirm(`Collect ${interest} stars in interest (${tier.rate}% of ${savings})?`)) return
+
+    try {
+      // Update balance
+      const { error: balanceError } = await supabase
+        .from('currency_balances')
+        .update({
+          savings_stars: savings + interest,
+          lifetime_stars_earned: (currencyBalance?.lifetime_stars_earned || 0) + interest,
+          updated_at: new Date().toISOString()
+        })
+        .eq('child_id', user.childProfile.id)
+
+      if (balanceError) throw balanceError
+
+      // Log transaction
+      await supabase.from('transactions').insert({
+        child_id: user.childProfile.id,
+        transaction_type: 'interest',
+        currency_type: 'stars',
+        amount: interest,
+        description: `Monthly interest (${tier.rate}% - ${tier.tier} tier)`
+      })
+
+      // Show celebration
+      setCelebrationMessage(`You earned ${interest} stars in interest!`)
+      setShowCelebration(true)
+      setTimeout(() => setShowCelebration(false), 4000)
+
+      loadData()
+    } catch (error) {
+      console.error('Error collecting interest:', error)
+      toast.error('Failed to collect interest')
     }
   }
 
@@ -259,16 +356,25 @@ export default function BankPage() {
           <p className="text-sm text-green-400">
             +{currentTier.rate}% monthly interest = +{monthlyInterest} stars/month
           </p>
-          <button
-            onClick={() => {
-              setTransferType('withdraw')
-              setShowTransferModal(true)
-            }}
-            disabled={savingsStars === 0}
-            className="w-full mt-4 px-4 py-2 bg-white/10 text-white rounded-xl font-medium hover:bg-white/20 transition-colors disabled:opacity-50"
-          >
-            Withdraw to Wallet
-          </button>
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={() => {
+                setTransferType('withdraw')
+                setShowTransferModal(true)
+              }}
+              disabled={savingsStars === 0}
+              className="flex-1 px-4 py-2 bg-white/10 text-white rounded-xl font-medium hover:bg-white/20 transition-colors disabled:opacity-50"
+            >
+              Withdraw
+            </button>
+            <button
+              onClick={handleCollectInterest}
+              disabled={savingsStars === 0 || monthlyInterest === 0}
+              className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              Collect Interest
+            </button>
+          </div>
         </div>
       </div>
 
@@ -393,7 +499,12 @@ export default function BankPage() {
                       {Math.min(savingsStars, goal.target_amount)} / {goal.target_amount} ⭐
                     </span>
                     {canComplete ? (
-                      <span className="text-green-400 font-medium">Goal reached!</span>
+                      <button
+                        onClick={() => handleCompleteGoal(goal)}
+                        className="px-3 py-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity animate-pulse"
+                      >
+                        Complete Goal!
+                      </button>
                     ) : (
                       <span className="text-white/50">
                         {goal.target_amount - savingsStars} more needed
@@ -585,6 +696,38 @@ export default function BankPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Celebration Modal */}
+      {showCelebration && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card p-8 max-w-md w-full text-center animate-bounce-in">
+            {/* Confetti effect with emojis */}
+            <div className="text-6xl mb-4 animate-bounce">
+              🎉✨🌟✨🎉
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-4">
+              {celebrationMessage}
+            </h2>
+            <div className="flex justify-center gap-2 text-4xl mb-6">
+              {['⭐', '💰', '🏆', '💎', '🎊'].map((emoji, i) => (
+                <span
+                  key={i}
+                  className="animate-float"
+                  style={{ animationDelay: `${i * 0.1}s` }}
+                >
+                  {emoji}
+                </span>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowCelebration(false)}
+              className="px-6 py-3 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl font-bold hover:opacity-90 transition-opacity"
+            >
+              Awesome!
+            </button>
           </div>
         </div>
       )}

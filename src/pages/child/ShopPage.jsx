@@ -23,6 +23,7 @@ export default function ShopPage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [selectedReward, setSelectedReward] = useState(null)
   const [redeeming, setRedeeming] = useState(false)
+  const [todayRedemptions, setTodayRedemptions] = useState([])
 
   useEffect(() => {
     if (user?.childProfile?.id) {
@@ -64,6 +65,16 @@ export default function ShopPage() {
         .order('requested_at', { ascending: false })
       setPendingRedemptions(redemptions || [])
 
+      // Load today's redemptions for daily limit checking
+      const today = new Date().toISOString().split('T')[0]
+      const { data: todayData } = await supabase
+        .from('redemptions')
+        .select('reward_id, requested_at')
+        .eq('child_id', childId)
+        .gte('requested_at', `${today}T00:00:00`)
+        .lte('requested_at', `${today}T23:59:59`)
+      setTodayRedemptions(todayData || [])
+
     } catch (error) {
       console.error('Error loading shop:', error)
       toast.error('Failed to load shop')
@@ -79,7 +90,24 @@ export default function ShopPage() {
     return hasStars && hasGems
   }
 
+  function getTodayRedemptionCount(rewardId) {
+    return todayRedemptions.filter(r => r.reward_id === rewardId).length
+  }
+
+  function isAtDailyLimit(reward) {
+    if (!reward.daily_limit) return false
+    return getTodayRedemptionCount(reward.id) >= reward.daily_limit
+  }
+
+  function canRedeem(reward) {
+    return canAfford(reward) && !isAtDailyLimit(reward)
+  }
+
   function openConfirmModal(reward) {
+    if (isAtDailyLimit(reward)) {
+      toast.error(`Daily limit reached for ${reward.name}`)
+      return
+    }
     setSelectedReward(reward)
     setShowConfirmModal(true)
   }
@@ -108,17 +136,24 @@ export default function ShopPage() {
 
       if (balanceError) throw balanceError
 
-      // Create redemption request
+      // Create redemption request - auto-approve if enabled
+      const isAutoApprove = selectedReward.auto_approve
+      const redemptionData = {
+        child_id: user.childProfile.id,
+        reward_id: selectedReward.id,
+        cost_stars: selectedReward.cost_stars || 0,
+        cost_gems: selectedReward.cost_gems || 0,
+        status: isAutoApprove ? 'approved' : 'pending',
+        requested_at: new Date().toISOString()
+      }
+
+      if (isAutoApprove) {
+        redemptionData.processed_at = new Date().toISOString()
+      }
+
       const { error: redemptionError } = await supabase
         .from('redemptions')
-        .insert({
-          child_id: user.childProfile.id,
-          reward_id: selectedReward.id,
-          cost_stars: selectedReward.cost_stars || 0,
-          cost_gems: selectedReward.cost_gems || 0,
-          status: 'pending',
-          requested_at: new Date().toISOString()
-        })
+        .insert(redemptionData)
 
       if (redemptionError) throw redemptionError
 
@@ -143,7 +178,11 @@ export default function ShopPage() {
           .eq('id', selectedReward.id)
       }
 
-      toast.success('Reward requested! Waiting for parent approval.')
+      if (isAutoApprove) {
+        toast.success('Reward redeemed! Enjoy!')
+      } else {
+        toast.success('Reward requested! Waiting for parent approval.')
+      }
       setShowConfirmModal(false)
       setSelectedReward(null)
       loadData()
@@ -268,16 +307,19 @@ export default function ShopPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {starRewards.map(reward => {
               const affordable = canAfford(reward)
+              const atLimit = isAtDailyLimit(reward)
+              const redeemable = canRedeem(reward)
               const category = getCategoryInfo(reward.category)
+              const todayCount = getTodayRedemptionCount(reward.id)
               return (
                 <div
                   key={reward.id}
                   className={`p-4 rounded-xl border transition-all ${
-                    affordable
+                    redeemable
                       ? 'bg-white/5 border-white/20 hover:border-neon-blue cursor-pointer card-hover'
                       : 'bg-white/5 border-white/10 opacity-60'
                   }`}
-                  onClick={() => affordable && openConfirmModal(reward)}
+                  onClick={() => redeemable && openConfirmModal(reward)}
                 >
                   <div className="flex items-start gap-3">
                     <span className="text-4xl">{reward.icon || '🎁'}</span>
@@ -303,15 +345,37 @@ export default function ShopPage() {
                         </span>
                       )}
                     </div>
-                    {reward.stock_quantity !== null && (
-                      <span className="text-xs text-white/50">{reward.stock_quantity} left</span>
+                    <div className="flex items-center gap-2">
+                      {reward.stock_quantity !== null && (
+                        <span className="text-xs text-white/50">{reward.stock_quantity} left</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Auto-approve and daily limit badges */}
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {reward.auto_approve && (
+                      <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">
+                        Instant
+                      </span>
+                    )}
+                    {reward.daily_limit && (
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        atLimit ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'
+                      }`}>
+                        {todayCount}/{reward.daily_limit} today
+                      </span>
                     )}
                   </div>
 
-                  {affordable ? (
+                  {redeemable ? (
                     <button className="w-full mt-3 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-medium hover:opacity-90 transition-opacity">
                       Get It!
                     </button>
+                  ) : atLimit ? (
+                    <div className="w-full mt-3 px-4 py-2 bg-red-500/10 text-red-400 rounded-xl text-center text-sm">
+                      Daily limit reached
+                    </div>
                   ) : (
                     <div className="w-full mt-3 px-4 py-2 bg-white/5 text-white/50 rounded-xl text-center text-sm">
                       Need more {reward.cost_stars > (currencyBalance?.wallet_stars || 0) ? 'stars' : 'gems'}
@@ -334,16 +398,19 @@ export default function ShopPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {gemRewards.map(reward => {
               const affordable = canAfford(reward)
+              const atLimit = isAtDailyLimit(reward)
+              const redeemable = canRedeem(reward)
               const category = getCategoryInfo(reward.category)
+              const todayCount = getTodayRedemptionCount(reward.id)
               return (
                 <div
                   key={reward.id}
                   className={`p-4 rounded-xl border transition-all ${
-                    affordable
+                    redeemable
                       ? 'bg-purple-500/10 border-purple-500/30 hover:border-purple-400 cursor-pointer'
                       : 'bg-purple-500/5 border-purple-500/20 opacity-60'
                   }`}
-                  onClick={() => affordable && openConfirmModal(reward)}
+                  onClick={() => redeemable && openConfirmModal(reward)}
                 >
                   <div className="flex items-start gap-3">
                     <span className="text-4xl">{reward.icon || '💎'}</span>
@@ -363,10 +430,30 @@ export default function ShopPage() {
                     )}
                   </div>
 
-                  {affordable ? (
+                  {/* Auto-approve and daily limit badges */}
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {reward.auto_approve && (
+                      <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">
+                        Instant
+                      </span>
+                    )}
+                    {reward.daily_limit && (
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        atLimit ? 'bg-red-500/20 text-red-400' : 'bg-purple-400/20 text-purple-300'
+                      }`}>
+                        {todayCount}/{reward.daily_limit} today
+                      </span>
+                    )}
+                  </div>
+
+                  {redeemable ? (
                     <button className="w-full mt-3 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium hover:opacity-90 transition-opacity">
                       Get It!
                     </button>
+                  ) : atLimit ? (
+                    <div className="w-full mt-3 px-4 py-2 bg-red-500/10 text-red-400 rounded-xl text-center text-sm">
+                      Daily limit reached
+                    </div>
                   ) : (
                     <div className="w-full mt-3 px-4 py-2 bg-white/5 text-white/50 rounded-xl text-center text-sm">
                       Need more gems
@@ -413,8 +500,16 @@ export default function ShopPage() {
             </div>
 
             <p className="text-white/70 mb-6">
-              Are you sure you want to redeem this reward? Your parent will need to approve it.
+              {selectedReward.auto_approve
+                ? 'This reward will be instantly approved!'
+                : 'Are you sure you want to redeem this reward? Your parent will need to approve it.'}
             </p>
+
+            {selectedReward.auto_approve && (
+              <div className="mb-4 px-4 py-2 bg-green-500/20 text-green-400 rounded-xl text-sm">
+                Instant reward - no waiting!
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button

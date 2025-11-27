@@ -39,8 +39,11 @@ export default function SchedulePage() {
 
   // Modal state
   const [showItemModal, setShowItemModal] = useState(false)
+  const [showCopyDayModal, setShowCopyDayModal] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [selectedSlot, setSelectedSlot] = useState(null)
+  const [copyFromDay, setCopyFromDay] = useState('monday')
+  const [copyToDay, setCopyToDay] = useState('tuesday')
 
   // Form state
   const [itemForm, setItemForm] = useState({
@@ -281,6 +284,84 @@ export default function SchedulePage() {
     })
   }
 
+  // Copy day functionality
+  async function handleCopyDay() {
+    if (copyFromDay === copyToDay) {
+      toast.error('Source and destination days must be different')
+      return
+    }
+
+    const itemsToCopy = scheduleItems.filter(item => item.day_of_week === copyFromDay)
+
+    if (itemsToCopy.length === 0) {
+      toast.error(`No schedule items found for ${DAY_LABELS[DAYS_OF_WEEK.indexOf(copyFromDay)]}`)
+      return
+    }
+
+    try {
+      const newItems = itemsToCopy.map(item => ({
+        child_id: childProfile.id,
+        family_id: user.familyId,
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        day_of_week: copyToDay,
+        start_time: item.start_time,
+        end_time: item.end_time,
+        stars_reward: item.stars_reward,
+        is_recurring: item.is_recurring,
+        is_active: true
+      }))
+
+      const { error } = await supabase
+        .from('schedule_items')
+        .insert(newItems)
+
+      if (error) throw error
+
+      toast.success(`Copied ${itemsToCopy.length} items from ${DAY_LABELS[DAYS_OF_WEEK.indexOf(copyFromDay)]} to ${DAY_LABELS[DAYS_OF_WEEK.indexOf(copyToDay)]}`)
+      setShowCopyDayModal(false)
+      loadData()
+    } catch (error) {
+      console.error('Error copying day:', error)
+      toast.error('Failed to copy schedule')
+    }
+  }
+
+  // Conflict detection
+  function checkForConflicts(newItem) {
+    const conflicts = []
+    const newStart = timeToMinutes(newItem.start_time)
+    const newEnd = timeToMinutes(newItem.end_time)
+
+    for (const item of scheduleItems) {
+      if (item.day_of_week !== newItem.day_of_week) continue
+      if (editingItem && item.id === editingItem.id) continue
+
+      const itemStart = timeToMinutes(item.start_time)
+      const itemEnd = timeToMinutes(item.end_time)
+
+      // Check for overlap
+      if (newStart < itemEnd && newEnd > itemStart) {
+        conflicts.push(item)
+      }
+    }
+
+    return conflicts
+  }
+
+  function timeToMinutes(time) {
+    const [hours, minutes] = time.split(':').map(Number)
+    return hours * 60 + minutes
+  }
+
+  function getConflictWarning() {
+    if (!itemForm.start_time || !itemForm.end_time) return null
+    const conflicts = checkForConflicts(itemForm)
+    if (conflicts.length === 0) return null
+    return conflicts
+  }
+
   const getCategoryInfo = (category) => {
     return TASK_CATEGORIES.find(c => c.value === category) || TASK_CATEGORIES[5]
   }
@@ -308,7 +389,13 @@ export default function SchedulePage() {
             </p>
           </div>
           {canEditSchedule && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setShowCopyDayModal(true)}
+                className="px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
+              >
+                📑 Copy Day
+              </button>
               <button
                 onClick={generateTasksForWeek}
                 className="px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
@@ -531,6 +618,16 @@ export default function SchedulePage() {
                 />
               </div>
 
+              {/* Conflict Warning */}
+              {getConflictWarning() && (
+                <div className="p-3 bg-yellow-500/20 border border-yellow-500/40 rounded-xl">
+                  <p className="text-yellow-400 text-sm font-medium mb-1">⚠️ Time Conflict Detected</p>
+                  <p className="text-yellow-400/80 text-xs">
+                    This overlaps with: {getConflictWarning().map(c => c.title).join(', ')}
+                  </p>
+                </div>
+              )}
+
               <div className="flex gap-3 justify-between mt-6">
                 {editingItem && (
                   <button
@@ -557,6 +654,69 @@ export default function SchedulePage() {
                     {editingItem ? 'Save Changes' : 'Add Item'}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Copy Day Modal */}
+      {showCopyDayModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card p-6 max-w-sm w-full">
+            <h3 className="text-lg font-semibold text-white mb-4">Copy Day Schedule</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-white/70 mb-1">Copy from</label>
+                <select
+                  value={copyFromDay}
+                  onChange={(e) => setCopyFromDay(e.target.value)}
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                >
+                  {DAYS_OF_WEEK.map((day, i) => (
+                    <option key={day} value={day}>
+                      {DAY_LABELS[i]} ({scheduleItems.filter(item => item.day_of_week === day).length} items)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="text-center text-white/40">↓</div>
+
+              <div>
+                <label className="block text-sm text-white/70 mb-1">Copy to</label>
+                <select
+                  value={copyToDay}
+                  onChange={(e) => setCopyToDay(e.target.value)}
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                >
+                  {DAYS_OF_WEEK.map((day, i) => (
+                    <option key={day} value={day}>
+                      {DAY_LABELS[i]} ({scheduleItems.filter(item => item.day_of_week === day).length} items)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {copyFromDay === copyToDay && (
+                <p className="text-yellow-400 text-sm">Source and destination must be different</p>
+              )}
+
+              <div className="flex gap-3 justify-end mt-6">
+                <button
+                  onClick={() => setShowCopyDayModal(false)}
+                  className="px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCopyDay}
+                  disabled={copyFromDay === copyToDay}
+                  className="px-4 py-2 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Copy Schedule
+                </button>
               </div>
             </div>
           </div>

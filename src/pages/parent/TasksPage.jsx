@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
+import {
+  updateQuestProgress,
+  checkAchievements,
+  updateSkillProgress
+} from '../../services/gamificationService'
 import toast from 'react-hot-toast'
 
 const TASK_CATEGORIES = [
@@ -23,6 +28,7 @@ export default function TasksPage() {
   const [taskTemplates, setTaskTemplates] = useState([])
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [filterStatus, setFilterStatus] = useState('all')
+  const [selectedTasks, setSelectedTasks] = useState([])
 
   // Modal states
   const [showTaskModal, setShowTaskModal] = useState(false)
@@ -222,6 +228,22 @@ export default function TasksPage() {
         })
       }
 
+      // Update quest progress (stars earned)
+      await updateQuestProgress(childProfile.id, 'task_approved', {
+        starsEarned: task.stars_reward || 0
+      })
+
+      // Update skill progress for the category
+      if (task.category) {
+        await updateSkillProgress(childProfile.id, task.category, task.stars_reward || 1)
+      }
+
+      // Check for new achievements
+      await checkAchievements(childProfile.id)
+
+      // Check for daily completion quests
+      await updateQuestProgress(childProfile.id, 'daily_check', {})
+
       toast.success(`Task approved! +${task.stars_reward} stars`)
       loadData()
     } catch (error) {
@@ -270,6 +292,122 @@ export default function TasksPage() {
     } catch (error) {
       console.error('Error resetting task:', error)
       toast.error('Failed to reset task')
+    }
+  }
+
+  // Bulk approve handler
+  async function handleBulkApprove() {
+    const tasksToApprove = tasks.filter(t =>
+      selectedTasks.includes(t.id) && t.status === 'completed'
+    )
+
+    if (tasksToApprove.length === 0) {
+      toast.error('No completed tasks selected')
+      return
+    }
+
+    try {
+      // Get current balance
+      const { data: balance } = await supabase
+        .from('currency_balances')
+        .select('*')
+        .eq('child_id', childProfile.id)
+        .single()
+
+      let totalStars = 0
+
+      // Approve each task
+      for (const task of tasksToApprove) {
+        const { error: taskError } = await supabase
+          .from('daily_tasks')
+          .update({
+            status: 'approved',
+            approved_at: new Date().toISOString(),
+            approved_by: user.id
+          })
+          .eq('id', task.id)
+
+        if (taskError) throw taskError
+        totalStars += task.stars_reward || 0
+
+        // Log transaction for each task
+        if (task.stars_reward > 0) {
+          await supabase.from('transactions').insert({
+            child_id: childProfile.id,
+            transaction_type: 'earn',
+            currency_type: 'stars',
+            amount: task.stars_reward,
+            description: `Task approved: ${task.title}`,
+            reference_type: 'task',
+            reference_id: task.id
+          })
+        }
+      }
+
+      // Award stars in bulk
+      if (totalStars > 0 && balance) {
+        const { error: balanceError } = await supabase
+          .from('currency_balances')
+          .update({
+            wallet_stars: balance.wallet_stars + totalStars,
+            lifetime_stars_earned: balance.lifetime_stars_earned + totalStars,
+            updated_at: new Date().toISOString()
+          })
+          .eq('child_id', childProfile.id)
+
+        if (balanceError) throw balanceError
+      }
+
+      // Update quest progress for all approved tasks
+      await updateQuestProgress(childProfile.id, 'task_approved', {
+        starsEarned: totalStars
+      })
+
+      // Update skill progress for each category
+      const categoryPoints = {}
+      for (const task of tasksToApprove) {
+        if (task.category) {
+          categoryPoints[task.category] = (categoryPoints[task.category] || 0) + (task.stars_reward || 1)
+        }
+      }
+      for (const [category, points] of Object.entries(categoryPoints)) {
+        await updateSkillProgress(childProfile.id, category, points)
+      }
+
+      // Check for new achievements
+      await checkAchievements(childProfile.id)
+
+      // Check for daily completion quests
+      await updateQuestProgress(childProfile.id, 'daily_check', {})
+
+      setSelectedTasks([])
+      toast.success(`${tasksToApprove.length} tasks approved! +${totalStars} stars`)
+      loadData()
+    } catch (error) {
+      console.error('Error bulk approving tasks:', error)
+      toast.error('Failed to approve tasks')
+    }
+  }
+
+  function toggleTaskSelection(taskId) {
+    setSelectedTasks(prev =>
+      prev.includes(taskId)
+        ? prev.filter(id => id !== taskId)
+        : [...prev, taskId]
+    )
+  }
+
+  function toggleSelectAllCompleted() {
+    const completedTaskIds = tasks
+      .filter(t => t.status === 'completed')
+      .map(t => t.id)
+
+    const allSelected = completedTaskIds.every(id => selectedTasks.includes(id))
+
+    if (allSelected) {
+      setSelectedTasks(prev => prev.filter(id => !completedTaskIds.includes(id)))
+    } else {
+      setSelectedTasks(prev => [...new Set([...prev, ...completedTaskIds])])
     }
   }
 
@@ -424,6 +562,49 @@ export default function TasksPage() {
         </div>
       </div>
 
+      {/* Bulk Actions Bar */}
+      {canApproveTasks && stats.completed > 0 && (
+        <div className="glass-card p-4 bg-yellow-500/10 border-yellow-500/30">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={tasks.filter(t => t.status === 'completed').every(t => selectedTasks.includes(t.id)) && stats.completed > 0}
+                  onChange={toggleSelectAllCompleted}
+                  className="w-4 h-4 rounded"
+                />
+                <span className="text-sm text-white/80">Select all awaiting approval ({stats.completed})</span>
+              </label>
+            </div>
+            <div className="flex items-center gap-3">
+              {selectedTasks.length > 0 && (
+                <>
+                  <span className="text-sm text-white/60">
+                    {selectedTasks.filter(id => tasks.find(t => t.id === id)?.status === 'completed').length} selected
+                  </span>
+                  <button
+                    onClick={handleBulkApprove}
+                    className="px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-medium flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Approve Selected
+                  </button>
+                  <button
+                    onClick={() => setSelectedTasks([])}
+                    className="px-3 py-2 bg-white/10 text-white/70 rounded-xl hover:bg-white/20 transition-colors text-sm"
+                  >
+                    Clear
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tasks List */}
       <div className="glass-card p-6">
         <h2 className="text-lg font-semibold text-white mb-4">
@@ -461,6 +642,18 @@ export default function TasksPage() {
                   }`}
                 >
                   <div className="flex items-start gap-4">
+                    {/* Checkbox for bulk selection */}
+                    {canApproveTasks && task.status === 'completed' && (
+                      <label className="flex items-center cursor-pointer self-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedTasks.includes(task.id)}
+                          onChange={() => toggleTaskSelection(task.id)}
+                          className="w-5 h-5 rounded"
+                        />
+                      </label>
+                    )}
+
                     {/* Category Icon */}
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${
                       task.status === 'approved' ? 'bg-green-500/20' :

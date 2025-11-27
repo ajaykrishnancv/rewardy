@@ -31,6 +31,7 @@ import QuestsPage from './pages/child/QuestsPage'
 import ShopPage from './pages/child/ShopPage'
 import BankPage from './pages/child/BankPage'
 import AchievementsPage from './pages/child/AchievementsPage'
+import SkillsPage from './pages/child/SkillsPage'
 
 // Loading component
 function LoadingScreen() {
@@ -160,6 +161,7 @@ function App() {
         <Route path="shop" element={<ShopPage />} />
         <Route path="bank" element={<BankPage />} />
         <Route path="achievements" element={<AchievementsPage />} />
+        <Route path="skills" element={<SkillsPage />} />
       </Route>
 
       {/* Catch all */}

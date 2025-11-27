@@ -33,7 +33,9 @@ export default function RewardsPage() {
     cost_stars: 10,
     cost_gems: 0,
     stock_quantity: null,
-    is_active: true
+    is_active: true,
+    auto_approve: false,
+    daily_limit: null
   })
 
   useEffect(() => {
@@ -96,7 +98,9 @@ export default function RewardsPage() {
       cost_stars: 10,
       cost_gems: 0,
       stock_quantity: null,
-      is_active: true
+      is_active: true,
+      auto_approve: false,
+      daily_limit: null
     })
     setShowRewardModal(true)
   }
@@ -111,7 +115,9 @@ export default function RewardsPage() {
       cost_stars: reward.cost_stars || 0,
       cost_gems: reward.cost_gems || 0,
       stock_quantity: reward.stock_quantity,
-      is_active: reward.is_active
+      is_active: reward.is_active,
+      auto_approve: reward.auto_approve || false,
+      daily_limit: reward.daily_limit
     })
     setShowRewardModal(true)
   }
@@ -137,7 +143,9 @@ export default function RewardsPage() {
         cost_stars: rewardForm.cost_stars || 0,
         cost_gems: rewardForm.cost_gems || 0,
         stock_quantity: rewardForm.stock_quantity || null,
-        is_active: rewardForm.is_active
+        is_active: rewardForm.is_active,
+        auto_approve: rewardForm.auto_approve,
+        daily_limit: rewardForm.daily_limit || null
       }
 
       if (editingReward) {
@@ -437,6 +445,20 @@ export default function RewardsPage() {
                     )}
                   </div>
 
+                  {/* Auto-approve and daily limit badges */}
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {reward.auto_approve && (
+                      <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">
+                        Auto-approve
+                      </span>
+                    )}
+                    {reward.daily_limit && (
+                      <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
+                        Max {reward.daily_limit}/day
+                      </span>
+                    )}
+                  </div>
+
                   {canManageRewards && (
                     <div className="flex gap-2 mt-4 pt-4 border-t border-white/10">
                       <button
@@ -585,15 +607,46 @@ export default function RewardsPage() {
                 />
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer">
+              <div>
+                <label className="block text-sm text-white/70 mb-1">
+                  Daily Limit (leave empty for unlimited)
+                </label>
                 <input
-                  type="checkbox"
-                  checked={rewardForm.is_active}
-                  onChange={(e) => setRewardForm({ ...rewardForm, is_active: e.target.checked })}
-                  className="w-4 h-4 rounded"
+                  type="number"
+                  value={rewardForm.daily_limit || ''}
+                  onChange={(e) => setRewardForm({ ...rewardForm, daily_limit: e.target.value ? parseInt(e.target.value) : null })}
+                  min="1"
+                  placeholder="Unlimited"
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-neon-blue"
                 />
-                <span className="text-sm text-white/70">Show in shop</span>
-              </label>
+              </div>
+
+              <div className="space-y-3 p-4 bg-white/5 rounded-xl border border-white/10">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rewardForm.is_active}
+                    onChange={(e) => setRewardForm({ ...rewardForm, is_active: e.target.checked })}
+                    className="w-4 h-4 rounded"
+                  />
+                  <span className="text-sm text-white/70">Show in shop</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rewardForm.auto_approve}
+                    onChange={(e) => setRewardForm({ ...rewardForm, auto_approve: e.target.checked })}
+                    className="w-4 h-4 rounded"
+                  />
+                  <span className="text-sm text-white/70">Auto-approve (no parent approval needed)</span>
+                </label>
+                {rewardForm.auto_approve && (
+                  <p className="text-xs text-yellow-400/80 ml-6">
+                    Redemptions will be automatically approved
+                  </p>
+                )}
+              </div>
 
               <div className="flex gap-3 justify-end mt-6">
                 <button

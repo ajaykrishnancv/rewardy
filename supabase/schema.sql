@@ -596,18 +596,44 @@ ON CONFLICT (username) DO NOTHING;
 -- =====================================================
 
 INSERT INTO achievements (code, name, description, icon, category, criteria, reward_gems, sort_order) VALUES
+-- Beginner achievements
 ('first_star', 'First Star', 'Earn your very first star', '⭐', 'beginner', '{"type": "stars_earned", "value": 1}', 1, 1),
 ('star_collector_10', 'Star Collector', 'Earn 10 stars total', '🌟', 'beginner', '{"type": "stars_earned", "value": 10}', 2, 2),
 ('star_collector_100', 'Star Master', 'Earn 100 stars total', '✨', 'intermediate', '{"type": "stars_earned", "value": 100}', 5, 3),
-('first_task', 'First Quest', 'Complete your first task', '📋', 'beginner', '{"type": "tasks_completed", "value": 1}', 1, 4),
-('task_warrior_10', 'Task Warrior', 'Complete 10 tasks', '⚔️', 'beginner', '{"type": "tasks_completed", "value": 10}', 2, 5),
-('task_master_50', 'Task Master', 'Complete 50 tasks', '🗡️', 'intermediate', '{"type": "tasks_completed", "value": 50}', 5, 6),
-('streak_7', 'Week Warrior', '7 day streak', '🔥', 'streak', '{"type": "streak", "value": 7}', 3, 7),
-('streak_30', 'Monthly Champion', '30 day streak', '💪', 'streak', '{"type": "streak", "value": 30}', 10, 8),
-('saver_100', 'Smart Saver', 'Save 100 stars in savings', '🏦', 'economy', '{"type": "savings", "value": 100}', 3, 9),
-('saver_500', 'Bank Boss', 'Save 500 stars in savings', '💰', 'economy', '{"type": "savings", "value": 500}', 10, 10),
-('first_reward', 'First Treat', 'Redeem your first reward', '🎁', 'rewards', '{"type": "rewards_redeemed", "value": 1}', 1, 11),
-('goal_achiever', 'Goal Getter', 'Complete a savings goal', '🎯', 'economy', '{"type": "goals_completed", "value": 1}', 5, 12)
+('star_collector_500', 'Star Legend', 'Earn 500 stars total', '🌠', 'advanced', '{"type": "stars_earned", "value": 500}', 15, 4),
+('star_collector_1000', 'Star Champion', 'Earn 1000 stars total', '💫', 'advanced', '{"type": "stars_earned", "value": 1000}', 25, 5),
+-- Task achievements
+('first_task', 'First Quest', 'Complete your first task', '📋', 'beginner', '{"type": "tasks_completed", "value": 1}', 1, 10),
+('task_warrior_10', 'Task Warrior', 'Complete 10 tasks', '⚔️', 'beginner', '{"type": "tasks_completed", "value": 10}', 2, 11),
+('task_master_50', 'Task Master', 'Complete 50 tasks', '🗡️', 'intermediate', '{"type": "tasks_completed", "value": 50}', 5, 12),
+('task_legend_100', 'Task Legend', 'Complete 100 tasks', '🏅', 'advanced', '{"type": "tasks_completed", "value": 100}', 10, 13),
+('task_champion_250', 'Task Champion', 'Complete 250 tasks', '👑', 'advanced', '{"type": "tasks_completed", "value": 250}', 20, 14),
+-- Streak achievements
+('streak_3', 'Getting Started', '3 day streak', '🔥', 'streak', '{"type": "streak", "value": 3}', 1, 20),
+('streak_7', 'Week Warrior', '7 day streak', '🔥', 'streak', '{"type": "streak", "value": 7}', 3, 21),
+('streak_14', 'Fortnight Fighter', '14 day streak', '🔥', 'streak', '{"type": "streak", "value": 14}', 5, 22),
+('streak_30', 'Monthly Champion', '30 day streak', '💪', 'streak', '{"type": "streak", "value": 30}', 10, 23),
+('streak_100', 'Streak Master', '100 day streak', '🏆', 'streak', '{"type": "streak", "value": 100}', 30, 24),
+-- Economy achievements
+('saver_50', 'Penny Pincher', 'Save 50 stars in savings', '🐷', 'economy', '{"type": "savings", "value": 50}', 2, 30),
+('saver_100', 'Smart Saver', 'Save 100 stars in savings', '🏦', 'economy', '{"type": "savings", "value": 100}', 3, 31),
+('saver_250', 'Savings Pro', 'Save 250 stars in savings', '💵', 'economy', '{"type": "savings", "value": 250}', 5, 32),
+('saver_500', 'Bank Boss', 'Save 500 stars in savings', '💰', 'economy', '{"type": "savings", "value": 500}', 10, 33),
+('saver_1000', 'Money Master', 'Save 1000 stars in savings', '🤑', 'economy', '{"type": "savings", "value": 1000}', 20, 34),
+-- Goal achievements
+('goal_achiever', 'Goal Getter', 'Complete a savings goal', '🎯', 'economy', '{"type": "goals_completed", "value": 1}', 5, 40),
+('goal_master_3', 'Goal Master', 'Complete 3 savings goals', '🏁', 'economy', '{"type": "goals_completed", "value": 3}', 10, 41),
+('goal_champion_5', 'Goal Champion', 'Complete 5 savings goals', '🚀', 'economy', '{"type": "goals_completed", "value": 5}', 15, 42),
+-- Reward achievements
+('first_reward', 'First Treat', 'Redeem your first reward', '🎁', 'rewards', '{"type": "rewards_redeemed", "value": 1}', 1, 50),
+('reward_lover_5', 'Reward Lover', 'Redeem 5 rewards', '🎀', 'rewards', '{"type": "rewards_redeemed", "value": 5}', 3, 51),
+('reward_collector_10', 'Reward Collector', 'Redeem 10 rewards', '🎪', 'rewards', '{"type": "rewards_redeemed", "value": 10}', 5, 52),
+('reward_master_25', 'Reward Master', 'Redeem 25 rewards', '🎭', 'rewards', '{"type": "rewards_redeemed", "value": 25}', 10, 53),
+-- Gem achievements
+('gem_starter', 'Gem Starter', 'Earn 5 gems', '💎', 'special', '{"type": "gems_earned", "value": 5}', 0, 60),
+('gem_collector_25', 'Gem Collector', 'Earn 25 gems', '💎', 'special', '{"type": "gems_earned", "value": 25}', 0, 61),
+('gem_master_50', 'Gem Master', 'Earn 50 gems', '💎', 'special', '{"type": "gems_earned", "value": 50}', 0, 62),
+('gem_legend_100', 'Gem Legend', 'Earn 100 gems', '💎', 'special', '{"type": "gems_earned", "value": 100}', 0, 63)
 ON CONFLICT (code) DO NOTHING;
 
 -- =====================================================

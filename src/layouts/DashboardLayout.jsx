@@ -17,6 +17,7 @@ const childNavItems = [
   { path: '/child/shop', label: 'Shop', icon: 'gift' },
   { path: '/child/bank', label: 'Bank', icon: 'bank' },
   { path: '/child/achievements', label: 'Badges', icon: 'trophy' },
+  { path: '/child/skills', label: 'Skills', icon: 'skills' },
 ]
 
 function NavIcon({ icon }) {
@@ -60,6 +61,11 @@ function NavIcon({ icon }) {
     trophy: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h14a1 1 0 011 1v3a7 7 0 01-7 7 7 7 0 01-7-7V4a1 1 0 011-1zm7 14v4m-4 0h8" />
+      </svg>
+    ),
+    skills: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
     ),
   }

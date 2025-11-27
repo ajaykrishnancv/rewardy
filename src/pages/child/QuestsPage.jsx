@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
+import {
+  generateDailyQuests,
+  generateWeeklyQuests,
+  updateQuestProgress,
+  updateStreak,
+  checkAchievements,
+  expireOldQuests
+} from '../../services/gamificationService'
 import toast from 'react-hot-toast'
 
 const TASK_CATEGORIES = [
@@ -19,12 +27,31 @@ export default function QuestsPage() {
   const [activeQuests, setActiveQuests] = useState([])
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [streak, setStreak] = useState(null)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [celebrationData, setCelebrationData] = useState(null)
+
+  useEffect(() => {
+    if (user?.childProfile?.id) {
+      initializeAndLoad()
+    }
+  }, [user?.childProfile?.id])
 
   useEffect(() => {
     if (user?.childProfile?.id) {
       loadData()
     }
-  }, [user?.childProfile?.id, selectedDate])
+  }, [selectedDate])
+
+  async function initializeAndLoad() {
+    const childId = user.childProfile.id
+
+    // Generate quests if needed (only on initial load)
+    await expireOldQuests(childId)
+    await generateDailyQuests(childId)
+    await generateWeeklyQuests(childId)
+
+    await loadData()
+  }
 
   async function loadData() {
     try {
@@ -87,6 +114,32 @@ export default function QuestsPage() {
           t.id === task.id ? { ...t, status: 'completed', completed_at: new Date().toISOString() } : t
         )
       )
+
+      const childId = user.childProfile.id
+
+      // Update streak
+      await updateStreak(childId)
+
+      // Update quest progress
+      const hour = new Date().getHours()
+      const completedQuests = await updateQuestProgress(childId, 'task_completed', {
+        completedBeforeNoon: hour < 12
+      })
+
+      // Check for new achievements
+      const newAchievements = await checkAchievements(childId)
+
+      // Show celebration for completed quests or achievements
+      if (completedQuests.length > 0 || newAchievements.length > 0) {
+        setCelebrationData({
+          quests: completedQuests,
+          achievements: newAchievements
+        })
+        setShowCelebration(true)
+      }
+
+      // Refresh data
+      await loadData()
 
       toast.success('Quest completed! Waiting for approval.')
     } catch (error) {
@@ -385,6 +438,81 @@ export default function QuestsPage() {
             : "Ready to begin your adventure?"}
         </p>
       </div>
+
+      {/* Celebration Modal */}
+      {showCelebration && celebrationData && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="glass-card p-8 max-w-md mx-4 text-center relative overflow-hidden">
+            {/* Confetti animation */}
+            <div className="absolute inset-0 pointer-events-none">
+              {['🎉', '✨', '🌟', '💫', '🎊', '⭐', '💎'].map((emoji, i) => (
+                <span
+                  key={i}
+                  className="absolute text-2xl animate-bounce"
+                  style={{
+                    left: `${10 + i * 12}%`,
+                    top: `${Math.random() * 30}%`,
+                    animationDelay: `${i * 0.1}s`,
+                    animationDuration: `${0.5 + Math.random() * 0.5}s`
+                  }}
+                >
+                  {emoji}
+                </span>
+              ))}
+            </div>
+
+            <div className="relative">
+              <div className="text-6xl mb-4 animate-bounce">🏆</div>
+              <h2 className="text-2xl font-bold text-white mb-4">Congratulations!</h2>
+
+              {celebrationData.quests?.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-white/80 mb-2">Quest Completed!</p>
+                  {celebrationData.quests.map(quest => (
+                    <div key={quest.id} className="p-3 bg-white/10 rounded-xl mb-2">
+                      <p className="font-semibold text-white">{quest.title}</p>
+                      <div className="flex justify-center gap-2 mt-2">
+                        {quest.reward_stars > 0 && (
+                          <span className="badge-star">+{quest.reward_stars} ⭐</span>
+                        )}
+                        {quest.reward_gems > 0 && (
+                          <span className="badge-gem">+{quest.reward_gems} 💎</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {celebrationData.achievements?.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-white/80 mb-2">Achievement Unlocked!</p>
+                  {celebrationData.achievements.map(achievement => (
+                    <div key={achievement.id} className="p-3 bg-purple-500/20 rounded-xl mb-2">
+                      <div className="text-3xl mb-1">{achievement.icon}</div>
+                      <p className="font-semibold text-white">{achievement.name}</p>
+                      <p className="text-sm text-white/60">{achievement.description}</p>
+                      {achievement.reward_gems > 0 && (
+                        <span className="badge-gem mt-2">+{achievement.reward_gems} 💎</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  setShowCelebration(false)
+                  setCelebrationData(null)
+                }}
+                className="btn-primary px-8 py-3"
+              >
+                Awesome!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
