@@ -246,7 +246,6 @@ export default function SchedulePage() {
         if (!existing) {
           tasksToCreate.push({
             child_id: childProfile.id,
-            family_id: user.familyId,
             title: item.title,
             description: item.description,
             category: item.category,
@@ -254,7 +253,8 @@ export default function SchedulePage() {
             star_value: item.star_value,
             task_date: taskDate,
             status: 'pending',
-            schedule_item_id: item.id
+            schedule_block_id: item.id,
+            is_bonus: false
           })
         }
       }
