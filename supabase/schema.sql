@@ -178,6 +178,7 @@ CREATE TABLE IF NOT EXISTS daily_tasks (
     title VARCHAR(100) NOT NULL,
     category VARCHAR(30) NOT NULL,
     description TEXT,
+    scheduled_time TIME,
     star_value INTEGER DEFAULT 1 CHECK (star_value >= 0),
     is_mandatory BOOLEAN DEFAULT true,
     is_bonus BOOLEAN DEFAULT false,

@@ -64,7 +64,7 @@ export default function QuestsPage() {
         .select('*')
         .eq('child_id', childId)
         .eq('task_date', selectedDate)
-        .order('scheduled_time', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true })
       setTodaysTasks(tasks || [])
 
       // Load active quests/challenges

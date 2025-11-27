@@ -34,3 +34,7 @@ ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 -- Create index for faster queries
 CREATE INDEX IF NOT EXISTS idx_schedule_blocks_child_id ON schedule_blocks(child_id);
 CREATE INDEX IF NOT EXISTS idx_schedule_blocks_active ON schedule_blocks(is_active);
+
+-- Add scheduled_time to daily_tasks
+ALTER TABLE daily_tasks
+ADD COLUMN IF NOT EXISTS scheduled_time TIME;

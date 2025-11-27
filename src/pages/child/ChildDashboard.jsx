@@ -48,7 +48,7 @@ export default function ChildDashboard() {
         .select('*')
         .eq('child_id', childId)
         .eq('task_date', today)
-        .order('scheduled_time', { ascending: true })
+        .order('created_at', { ascending: true })
       setTodaysTasks(tasks || [])
 
       // Load active quests
