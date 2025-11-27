@@ -28,16 +28,37 @@ function getLocalDateString(date = new Date()) {
   return `${year}-${month}-${day}`
 }
 
+// Convert time string to minutes for comparison
+function timeToMinutes(timeStr) {
+  if (!timeStr) return 0
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  return hours * 60 + minutes
+}
+
+// Get current time in minutes
+function getCurrentTimeInMinutes() {
+  const now = new Date()
+  return now.getHours() * 60 + now.getMinutes()
+}
+
 export default function QuestsPage() {
   const { user } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [todaysTasks, setTodaysTasks] = useState([])
   const [activeQuests, setActiveQuests] = useState([])
-  const [selectedDate, setSelectedDate] = useState(getLocalDateString())
   const [streak, setStreak] = useState(null)
   const [showCelebration, setShowCelebration] = useState(false)
   const [celebrationData, setCelebrationData] = useState(null)
+  const [currentTime, setCurrentTime] = useState(getCurrentTimeInMinutes())
   const initializedRef = useRef(false)
+
+  // Update current time every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(getCurrentTimeInMinutes())
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     if (user?.childProfile?.id && !initializedRef.current) {
@@ -45,12 +66,6 @@ export default function QuestsPage() {
       initializeAndLoad()
     }
   }, [user?.childProfile?.id])
-
-  useEffect(() => {
-    if (user?.childProfile?.id && initializedRef.current) {
-      loadData()
-    }
-  }, [selectedDate])
 
   async function initializeAndLoad() {
     const childId = user.childProfile.id
@@ -67,18 +82,18 @@ export default function QuestsPage() {
     try {
       setLoading(true)
       const childId = user.childProfile.id
+      const today = getLocalDateString()
 
-      // Load tasks for selected date
+      // Load tasks for today
       const { data: tasks } = await supabase
         .from('daily_tasks')
         .select('*')
         .eq('child_id', childId)
-        .eq('task_date', selectedDate)
-        .order('created_at', { ascending: true })
+        .eq('task_date', today)
+        .order('scheduled_time', { ascending: true, nullsLast: true })
       setTodaysTasks(tasks || [])
 
       // Load active quests/challenges
-      const today = getLocalDateString()
       const { data: quests } = await supabase
         .from('quests')
         .select('*')
@@ -162,18 +177,62 @@ export default function QuestsPage() {
     return TASK_CATEGORIES.find(c => c.value === category) || TASK_CATEGORIES[5]
   }
 
+  // Categorize tasks for timeline view
+  const scheduledTasks = todaysTasks.filter(t => !t.is_bonus && t.scheduled_time)
+  const bonusTasks = todaysTasks.filter(t => t.is_bonus)
+  const unscheduledTasks = todaysTasks.filter(t => !t.is_bonus && !t.scheduled_time)
+
+  // Find current task (pending task closest to current time)
+  const pendingScheduled = scheduledTasks.filter(t => t.status === 'pending')
+  const currentTask = pendingScheduled.find(t => {
+    const taskTime = timeToMinutes(t.scheduled_time)
+    // Current task is one that's within 30 minutes of its scheduled time or has passed
+    return taskTime <= currentTime + 30
+  }) || pendingScheduled[0]
+
+  // Up next tasks (pending tasks after current)
+  const upNextTasks = pendingScheduled.filter(t => t.id !== currentTask?.id).slice(0, 3)
+
+  // Completed tasks (approved or completed)
+  const completedTasks = todaysTasks.filter(t =>
+    t.status === 'approved' || t.status === 'completed'
+  )
+
   // Calculate stats
   const stats = {
-    total: todaysTasks.length,
-    pending: todaysTasks.filter(t => t.status === 'pending').length,
-    completed: todaysTasks.filter(t => t.status === 'completed' || t.status === 'approved').length,
+    total: todaysTasks.filter(t => !t.is_bonus).length,
+    completed: todaysTasks.filter(t => !t.is_bonus && (t.status === 'completed' || t.status === 'approved')).length,
     approved: todaysTasks.filter(t => t.status === 'approved').length,
     potentialStars: todaysTasks.reduce((sum, t) => sum + (t.star_value || 0), 0),
     earnedStars: todaysTasks.filter(t => t.status === 'approved').reduce((sum, t) => sum + (t.star_value || 0), 0)
   }
 
   const completionRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0
-  const isToday = selectedDate === getLocalDateString()
+
+  // Format time for display
+  function formatTime(timeStr) {
+    if (!timeStr) return 'Anytime'
+    const [hours, minutes] = timeStr.split(':').map(Number)
+    const period = hours >= 12 ? 'PM' : 'AM'
+    const displayHours = hours % 12 || 12
+    return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`
+  }
+
+  // Get time remaining for current task
+  function getTimeStatus(timeStr) {
+    if (!timeStr) return null
+    const taskTime = timeToMinutes(timeStr)
+    const diff = taskTime - currentTime
+
+    if (diff <= 0) {
+      return { text: 'Due now!', urgent: true }
+    } else if (diff <= 30) {
+      return { text: `In ${diff} min`, urgent: true }
+    } else if (diff <= 60) {
+      return { text: `In ${diff} min`, urgent: false }
+    }
+    return null
+  }
 
   if (loading) {
     return (
@@ -184,243 +243,131 @@ export default function QuestsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-6 pb-6">
+      {/* Header with streak and progress */}
       <div className="glass-card p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-white mb-1">My Quests</h1>
-            <p className="text-white/70">Complete tasks to earn stars!</p>
+            <h1 className="text-2xl font-bold text-white">My Timeline</h1>
+            <p className="text-white/60 text-sm">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="streak-fire px-4 py-2 bg-orange-500/20 border border-orange-500/30 rounded-xl flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <div className="px-3 py-2 bg-orange-500/20 border border-orange-500/30 rounded-xl flex items-center gap-2">
               <span className="text-xl">🔥</span>
-              <span className="text-white font-bold">{streak?.current_streak || 0} day streak</span>
+              <span className="text-white font-bold">{streak?.current_streak || 0}</span>
             </div>
           </div>
         </div>
+
+        {/* Progress bar */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <div className="progress-bar h-3">
+              <div
+                className="progress-bar-fill"
+                style={{ width: `${completionRate}%` }}
+              />
+            </div>
+          </div>
+          <span className="text-white font-bold text-sm">{completionRate}%</span>
+        </div>
+        <p className="text-white/50 text-xs mt-2">{stats.completed} of {stats.total} quests done</p>
       </div>
 
-      {/* Date Navigation */}
-      <div className="glass-card p-4">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => {
-              const d = new Date(selectedDate + 'T12:00:00')
-              d.setDate(d.getDate() - 1)
-              setSelectedDate(getLocalDateString(d))
-            }}
-            className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
-          >
-            ← Prev
-          </button>
-          <div className="text-center">
-            <p className="text-white font-medium">
-              {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            </p>
-            {!isToday && (
-              <button
-                onClick={() => setSelectedDate(getLocalDateString())}
-                className="text-sm text-neon-blue hover:underline"
-              >
-                Back to Today
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => {
-              const d = new Date(selectedDate + 'T12:00:00')
-              d.setDate(d.getDate() + 1)
-              setSelectedDate(getLocalDateString(d))
-            }}
-            className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
-          >
-            Next →
-          </button>
-        </div>
-      </div>
+      {/* Current Quest - Large Card */}
+      {currentTask && (
+        <div className="relative">
+          <div className="absolute -left-2 top-0 bottom-0 w-1 bg-gradient-to-b from-neon-blue to-neon-purple rounded-full" />
+          <div className="glass-card p-6 ml-4 border-2 border-neon-blue/50 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-neon-blue/20 rounded-full blur-2xl" />
 
-      {/* Progress */}
-      <div className="glass-card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Daily Progress</h2>
-          <div className="flex items-center gap-4">
-            <span className="text-neon-blue font-bold text-lg">{completionRate}%</span>
-            <div className="badge-star">+{stats.earnedStars}/{stats.potentialStars} ⭐</div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="px-2 py-1 bg-neon-blue/20 text-neon-blue text-xs font-bold rounded-lg uppercase">
+                Current Quest
+              </span>
+              {getTimeStatus(currentTask.scheduled_time) && (
+                <span className={`px-2 py-1 text-xs font-bold rounded-lg ${
+                  getTimeStatus(currentTask.scheduled_time).urgent
+                    ? 'bg-red-500/20 text-red-400 animate-pulse'
+                    : 'bg-yellow-500/20 text-yellow-400'
+                }`}>
+                  {getTimeStatus(currentTask.scheduled_time).text}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl bg-white/10`}>
+                {getCategoryInfo(currentTask.category).icon}
+              </div>
+
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white mb-1">{currentTask.title}</h2>
+                {currentTask.description && (
+                  <p className="text-white/60 text-sm mb-2">{currentTask.description}</p>
+                )}
+                <div className="flex items-center gap-3">
+                  <span className="text-white/50 text-sm">
+                    🕐 {formatTime(currentTask.scheduled_time)}
+                  </span>
+                  <span className="badge-star">+{currentTask.star_value} ⭐</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => handleCompleteTask(currentTask)}
+              className="w-full mt-4 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold text-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+            >
+              <span>Mark as Done!</span>
+              <span className="text-2xl">✓</span>
+            </button>
           </div>
         </div>
-        <div className="progress-bar h-4 mb-2">
-          <div
-            className="progress-bar-fill"
-            style={{ width: `${completionRate}%` }}
-          />
-        </div>
-        <div className="flex justify-between text-sm text-white/60">
-          <span>{stats.completed} of {stats.total} quests done</span>
-          <span>{stats.pending} remaining</span>
-        </div>
-      </div>
+      )}
 
-      {/* Today's Tasks */}
-      <div className="glass-card p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">
-          {isToday ? "Today's Quests" : 'Quests'}
-        </h2>
+      {/* No Current Quest */}
+      {!currentTask && stats.total > 0 && stats.completed < stats.total && (
+        <div className="glass-card p-6 text-center">
+          <div className="text-4xl mb-2">⏰</div>
+          <p className="text-white font-medium">No quest right now</p>
+          <p className="text-white/60 text-sm">Check your upcoming quests below</p>
+        </div>
+      )}
 
-        {todaysTasks.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4 animate-float">🎉</div>
-            <p className="text-white/70 font-medium text-lg mb-2">
-              {isToday ? 'No quests for today!' : 'No quests for this day'}
-            </p>
-            <p className="text-sm text-white/50">
-              {isToday ? 'Enjoy your free time!' : 'Check another day'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {todaysTasks.map(task => {
+      {/* All done message */}
+      {stats.total > 0 && stats.completed === stats.total && (
+        <div className="glass-card p-6 text-center bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/30">
+          <div className="text-5xl mb-3">🏆</div>
+          <h2 className="text-xl font-bold text-green-400">All Quests Complete!</h2>
+          <p className="text-white/60">Amazing work today! You've earned {stats.potentialStars} ⭐</p>
+        </div>
+      )}
+
+      {/* Up Next Section */}
+      {upNextTasks.length > 0 && (
+        <div>
+          <h3 className="text-white/70 font-medium mb-3 ml-1 flex items-center gap-2">
+            <span>📋</span> Up Next
+          </h3>
+          <div className="space-y-2">
+            {upNextTasks.map(task => {
               const category = getCategoryInfo(task.category)
               return (
                 <div
                   key={task.id}
-                  className={`quest-card p-4 rounded-xl border transition-all ${
-                    task.status === 'approved'
-                      ? 'bg-green-500/10 border-green-500/30'
-                      : task.status === 'completed'
-                      ? 'bg-yellow-500/10 border-yellow-500/30'
-                      : task.status === 'rejected'
-                      ? 'bg-red-500/10 border-red-500/30'
-                      : 'bg-white/5 border-white/10'
-                  }`}
+                  className="glass-card p-4 flex items-center gap-4"
                 >
-                  <div className="flex items-center gap-4">
-                    {/* Status icon */}
-                    <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
-                      task.status === 'approved' ? 'bg-green-500/20' :
-                      task.status === 'completed' ? 'bg-yellow-500/20' :
-                      task.status === 'rejected' ? 'bg-red-500/20' :
-                      'bg-white/10'
-                    }`}>
-                      {task.status === 'approved' ? '✓' :
-                       task.status === 'completed' ? '⏳' :
-                       task.status === 'rejected' ? '✗' :
-                       category.icon}
-                    </div>
-
-                    {/* Task info */}
-                    <div className="flex-1">
-                      <p className={`font-medium text-lg ${
-                        task.status === 'approved' ? 'text-green-400 line-through' :
-                        task.status === 'rejected' ? 'text-red-400 line-through' :
-                        'text-white'
-                      }`}>
-                        {task.title}
-                      </p>
-                      {task.description && (
-                        <p className="text-sm text-white/60">{task.description}</p>
-                      )}
-                      <div className="flex items-center gap-3 mt-2">
-                        {task.scheduled_time && (
-                          <span className="text-xs text-white/50 bg-white/10 px-2 py-1 rounded">
-                            🕐 {task.scheduled_time}
-                          </span>
-                        )}
-                        <span className="badge-star text-sm">+{task.star_value} ⭐</span>
-                        {task.is_bonus && (
-                          <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">
-                            Bonus
-                          </span>
-                        )}
-                      </div>
-                      {task.rejection_reason && (
-                        <p className="text-sm text-red-400 mt-2">
-                          Reason: {task.rejection_reason}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Action button */}
-                    <div>
-                      {task.status === 'pending' && isToday && (
-                        <button
-                          onClick={() => handleCompleteTask(task)}
-                          className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold hover:opacity-90 transition-opacity"
-                        >
-                          Done!
-                        </button>
-                      )}
-                      {task.status === 'completed' && (
-                        <span className="px-4 py-2 bg-yellow-500/20 text-yellow-400 rounded-xl text-sm font-medium">
-                          Waiting...
-                        </span>
-                      )}
-                      {task.status === 'approved' && (
-                        <span className="px-4 py-2 bg-green-500/20 text-green-400 rounded-xl text-sm font-medium">
-                          Approved! ✓
-                        </span>
-                      )}
-                      {task.status === 'rejected' && (
-                        <span className="px-4 py-2 bg-red-500/20 text-red-400 rounded-xl text-sm font-medium">
-                          Try Again
-                        </span>
-                      )}
-                    </div>
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-xl">
+                    {category.icon}
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Active Challenges */}
-      {activeQuests.length > 0 && (
-        <div className="glass-card p-6">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span>🏆</span>
-            Active Challenges
-          </h2>
-          <div className="space-y-4">
-            {activeQuests.map(quest => {
-              const progress = quest.target_value > 0
-                ? Math.min((quest.current_value / quest.target_value) * 100, 100)
-                : 0
-
-              return (
-                <div key={quest.id} className="p-4 bg-white/5 rounded-xl border border-white/10">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="font-medium text-white text-lg">{quest.title}</p>
-                      <p className="text-sm text-white/60">{quest.description}</p>
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      quest.quest_type === 'daily' ? 'bg-blue-500/20 text-blue-400' :
-                      quest.quest_type === 'weekly' ? 'bg-purple-500/20 text-purple-400' :
-                      'bg-yellow-500/20 text-yellow-400'
-                    }`}>
-                      {quest.quest_type}
-                    </span>
+                  <div className="flex-1">
+                    <p className="text-white font-medium">{task.title}</p>
+                    <p className="text-white/50 text-xs">{formatTime(task.scheduled_time)}</p>
                   </div>
-                  <div className="progress-bar h-3 mb-3">
-                    <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-white/60">
-                      {quest.current_value} / {quest.target_value}
-                    </span>
-                    <div className="flex gap-2">
-                      {quest.reward_stars > 0 && (
-                        <span className="badge-star">+{quest.reward_stars} ⭐</span>
-                      )}
-                      {quest.reward_gems > 0 && (
-                        <span className="badge-gem">+{quest.reward_gems} 💎</span>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-xs text-white/50 mt-2">
-                    Ends: {new Date(quest.end_date).toLocaleDateString()}
-                  </p>
+                  <span className="badge-star text-xs">+{task.star_value}</span>
                 </div>
               )
             })}
@@ -428,26 +375,199 @@ export default function QuestsPage() {
         </div>
       )}
 
-      {/* Motivational Section */}
-      <div className="glass-card p-6 text-center bg-gradient-to-r from-neon-purple/20 to-neon-blue/20">
-        <div className="text-4xl mb-3">
-          {completionRate === 100 ? '🏆' :
-           completionRate >= 75 ? '🌟' :
-           completionRate >= 50 ? '💪' :
-           completionRate >= 25 ? '🚀' : '✨'}
+      {/* Unscheduled Tasks */}
+      {unscheduledTasks.filter(t => t.status === 'pending').length > 0 && (
+        <div>
+          <h3 className="text-white/70 font-medium mb-3 ml-1 flex items-center gap-2">
+            <span>📝</span> Anytime Today
+          </h3>
+          <div className="space-y-2">
+            {unscheduledTasks.filter(t => t.status === 'pending').map(task => {
+              const category = getCategoryInfo(task.category)
+              return (
+                <div
+                  key={task.id}
+                  className="glass-card p-4 flex items-center gap-4"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-xl">
+                    {category.icon}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-white font-medium">{task.title}</p>
+                    <span className="badge-star text-xs">+{task.star_value}</span>
+                  </div>
+                  <button
+                    onClick={() => handleCompleteTask(task)}
+                    className="px-4 py-2 bg-green-500/20 text-green-400 rounded-xl text-sm font-medium hover:bg-green-500/30 transition-colors"
+                  >
+                    Done!
+                  </button>
+                </div>
+              )
+            })}
+          </div>
         </div>
-        <p className="text-lg text-white font-medium">
-          {completionRate === 100
-            ? "Amazing! You've conquered all your quests!"
-            : completionRate >= 75
-            ? "Almost there! You're doing great!"
-            : completionRate >= 50
-            ? "Halfway done! Keep up the momentum!"
-            : completionRate >= 25
-            ? "Good start! Keep going!"
-            : "Ready to begin your adventure?"}
-        </p>
-      </div>
+      )}
+
+      {/* Completed Today Section */}
+      {completedTasks.length > 0 && (
+        <div>
+          <h3 className="text-white/70 font-medium mb-3 ml-1 flex items-center gap-2">
+            <span>✅</span> Completed ({completedTasks.length})
+          </h3>
+          <div className="space-y-2">
+            {completedTasks.map(task => {
+              const category = getCategoryInfo(task.category)
+              return (
+                <div
+                  key={task.id}
+                  className={`glass-card p-4 flex items-center gap-4 ${
+                    task.status === 'approved'
+                      ? 'bg-green-500/10 border-green-500/20'
+                      : 'bg-yellow-500/10 border-yellow-500/20'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${
+                    task.status === 'approved' ? 'bg-green-500/20' : 'bg-yellow-500/20'
+                  }`}>
+                    {task.status === 'approved' ? '✓' : '⏳'}
+                  </div>
+                  <div className="flex-1">
+                    <p className={`font-medium ${
+                      task.status === 'approved' ? 'text-green-400 line-through' : 'text-yellow-400'
+                    }`}>
+                      {task.title}
+                    </p>
+                    {task.scheduled_time && (
+                      <p className="text-white/40 text-xs">{formatTime(task.scheduled_time)}</p>
+                    )}
+                  </div>
+                  {task.status === 'approved' ? (
+                    <span className="text-green-400 text-xs font-medium">+{task.star_value} ⭐</span>
+                  ) : (
+                    <span className="text-yellow-400 text-xs">Awaiting...</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Bonus Quests Section */}
+      {bonusTasks.length > 0 && (
+        <div>
+          <h3 className="text-white/70 font-medium mb-3 ml-1 flex items-center gap-2">
+            <span>🎁</span> Bonus Quests
+          </h3>
+          <div className="space-y-2">
+            {bonusTasks.map(task => {
+              const category = getCategoryInfo(task.category)
+              const isDone = task.status === 'approved' || task.status === 'completed'
+              return (
+                <div
+                  key={task.id}
+                  className={`glass-card p-4 border-2 border-dashed ${
+                    isDone
+                      ? 'border-purple-500/30 bg-purple-500/10'
+                      : 'border-purple-500/30'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center text-xl">
+                      {isDone ? (task.status === 'approved' ? '✓' : '⏳') : category.icon}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className={`font-medium ${isDone ? 'text-purple-400' : 'text-white'}`}>
+                          {task.title}
+                        </p>
+                        <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded">
+                          BONUS
+                        </span>
+                      </div>
+                      {task.description && (
+                        <p className="text-white/50 text-xs">{task.description}</p>
+                      )}
+                    </div>
+                    {task.status === 'pending' ? (
+                      <button
+                        onClick={() => handleCompleteTask(task)}
+                        className="px-4 py-2 bg-purple-500/20 text-purple-400 rounded-xl text-sm font-medium hover:bg-purple-500/30 transition-colors"
+                      >
+                        Done!
+                      </button>
+                    ) : task.status === 'approved' ? (
+                      <span className="text-purple-400 text-xs">+{task.star_value} ⭐</span>
+                    ) : (
+                      <span className="text-yellow-400 text-xs">Awaiting...</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Active Challenges */}
+      {activeQuests.length > 0 && (
+        <div>
+          <h3 className="text-white/70 font-medium mb-3 ml-1 flex items-center gap-2">
+            <span>🏆</span> Active Challenges
+          </h3>
+          <div className="space-y-3">
+            {activeQuests.map(quest => {
+              const progress = quest.target_value > 0
+                ? Math.min((quest.current_value / quest.target_value) * 100, 100)
+                : 0
+
+              return (
+                <div key={quest.id} className="glass-card p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="font-medium text-white">{quest.title}</p>
+                      <p className="text-xs text-white/50">{quest.description}</p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      quest.quest_type === 'daily' ? 'bg-blue-500/20 text-blue-400' :
+                      quest.quest_type === 'weekly' ? 'bg-purple-500/20 text-purple-400' :
+                      'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {quest.quest_type}
+                    </span>
+                  </div>
+                  <div className="progress-bar h-2 mb-2">
+                    <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-white/50">
+                      {quest.current_value} / {quest.target_value}
+                    </span>
+                    <div className="flex gap-2">
+                      {quest.reward_stars > 0 && (
+                        <span className="text-yellow-400">+{quest.reward_stars} ⭐</span>
+                      )}
+                      {quest.reward_gems > 0 && (
+                        <span className="text-purple-400">+{quest.reward_gems} 💎</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {todaysTasks.length === 0 && (
+        <div className="glass-card p-8 text-center">
+          <div className="text-6xl mb-4">🎉</div>
+          <h2 className="text-xl font-bold text-white mb-2">No Quests Today!</h2>
+          <p className="text-white/60">Enjoy your free time!</p>
+        </div>
+      )}
 
       {/* Celebration Modal */}
       {showCelebration && celebrationData && (

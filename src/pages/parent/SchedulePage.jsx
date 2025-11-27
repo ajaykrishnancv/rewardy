@@ -34,7 +34,8 @@ export default function SchedulePage() {
 
   const [loading, setLoading] = useState(true)
   const [childProfile, setChildProfile] = useState(null)
-  const [scheduleItems, setScheduleItems] = useState([])
+  const [scheduleItems, setScheduleItems] = useState([]) // schedule_blocks (templates)
+  const [weekTasks, setWeekTasks] = useState([]) // actual daily_tasks for the week
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date()
     const dayOfWeek = today.getDay()
@@ -49,6 +50,7 @@ export default function SchedulePage() {
   const [showItemModal, setShowItemModal] = useState(false)
   const [showCopyDayModal, setShowCopyDayModal] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
+  const [editingTask, setEditingTask] = useState(null) // For editing actual tasks
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [copyFromDay, setCopyFromDay] = useState('monday')
   const [copyToDay, setCopyToDay] = useState('tuesday')
@@ -69,7 +71,7 @@ export default function SchedulePage() {
     if (user?.familyId) {
       loadData()
     }
-  }, [user?.familyId])
+  }, [user?.familyId, currentWeekStart])
 
   async function loadData() {
     try {
@@ -85,7 +87,7 @@ export default function SchedulePage() {
       setChildProfile(child)
 
       if (child) {
-        // Load schedule items
+        // Load schedule blocks (templates)
         const { data: items } = await supabase
           .from('schedule_blocks')
           .select('*')
@@ -94,6 +96,22 @@ export default function SchedulePage() {
           .order('start_time')
 
         setScheduleItems(items || [])
+
+        // Load actual tasks for the current week (excluding bonus tasks)
+        const weekDates = getWeekDates()
+        const startDate = getLocalDateString(weekDates[0])
+        const endDate = getLocalDateString(weekDates[6])
+
+        const { data: tasks } = await supabase
+          .from('daily_tasks')
+          .select('*')
+          .eq('child_id', child.id)
+          .eq('is_bonus', false)
+          .gte('task_date', startDate)
+          .lte('task_date', endDate)
+          .order('scheduled_time')
+
+        setWeekTasks(tasks || [])
       }
     } catch (error) {
       console.error('Error loading schedule:', error)
@@ -129,6 +147,7 @@ export default function SchedulePage() {
 
   function openCreateItem(day, time) {
     setEditingItem(null)
+    setEditingTask(null)
     setSelectedSlot({ day, time })
     setItemForm({
       title: '',
@@ -145,6 +164,7 @@ export default function SchedulePage() {
 
   function openEditItem(item) {
     setEditingItem(item)
+    setEditingTask(null)
     setSelectedSlot(null)
     setItemForm({
       title: item.title,
@@ -155,6 +175,24 @@ export default function SchedulePage() {
       end_time: item.end_time || incrementTime(item.start_time),
       star_value: item.star_value || 5,
       recurrence_type: item.recurrence_type || (item.is_recurring ? 'weekly' : 'none')
+    })
+    setShowItemModal(true)
+  }
+
+  // Open edit modal for an actual task
+  function openEditTask(task) {
+    setEditingTask(task)
+    setEditingItem(null)
+    setSelectedSlot(null)
+    setItemForm({
+      title: task.title,
+      description: task.description || '',
+      category: task.category || 'other',
+      day_of_week: '', // Not used for tasks
+      start_time: task.scheduled_time || '09:00',
+      end_time: incrementTime(task.scheduled_time || '09:00'),
+      star_value: task.star_value || 5,
+      recurrence_type: 'none' // Tasks are single instances
     })
     setShowItemModal(true)
   }
@@ -172,6 +210,27 @@ export default function SchedulePage() {
     }
 
     try {
+      // If editing an actual task
+      if (editingTask) {
+        const { error } = await supabase
+          .from('daily_tasks')
+          .update({
+            title: itemForm.title.trim(),
+            description: itemForm.description.trim() || null,
+            category: itemForm.category,
+            scheduled_time: itemForm.start_time,
+            star_value: itemForm.star_value
+          })
+          .eq('id', editingTask.id)
+
+        if (error) throw error
+        toast.success('Task updated!')
+        setShowItemModal(false)
+        loadData()
+        return
+      }
+
+      // Creating/editing a schedule block (template)
       const itemData = {
         child_id: childProfile.id,
         family_id: user.familyId,
@@ -187,6 +246,8 @@ export default function SchedulePage() {
         is_active: true
       }
 
+      let scheduleBlockId = editingItem?.id
+
       if (editingItem) {
         const { error } = await supabase
           .from('schedule_blocks')
@@ -194,14 +255,54 @@ export default function SchedulePage() {
           .eq('id', editingItem.id)
 
         if (error) throw error
-        toast.success('Schedule item updated!')
+        toast.success('Schedule template updated!')
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('schedule_blocks')
           .insert(itemData)
+          .select('id')
+          .single()
 
         if (error) throw error
-        toast.success('Schedule item created!')
+        scheduleBlockId = data.id
+
+        // Auto-generate task for the current week
+        const weekDates = getWeekDates()
+        const dayIndex = DAYS_OF_WEEK.indexOf(itemForm.day_of_week)
+
+        if (dayIndex !== -1) {
+          const taskDate = getLocalDateString(weekDates[dayIndex])
+
+          // Check if task already exists for this date
+          const { data: existing } = await supabase
+            .from('daily_tasks')
+            .select('id')
+            .eq('child_id', childProfile.id)
+            .eq('task_date', taskDate)
+            .eq('title', itemForm.title.trim())
+            .maybeSingle()
+
+          if (!existing) {
+            const { error: taskError } = await supabase
+              .from('daily_tasks')
+              .insert({
+                child_id: childProfile.id,
+                title: itemForm.title.trim(),
+                description: itemForm.description.trim() || null,
+                category: itemForm.category,
+                scheduled_time: itemForm.start_time,
+                star_value: itemForm.star_value,
+                task_date: taskDate,
+                status: 'pending',
+                schedule_block_id: scheduleBlockId,
+                is_bonus: false
+              })
+
+            if (taskError) throw taskError
+          }
+        }
+
+        toast.success('Schedule item created & task added!')
       }
 
       setShowItemModal(false)
@@ -213,7 +314,7 @@ export default function SchedulePage() {
   }
 
   async function handleDeleteItem(item) {
-    if (!confirm('Are you sure you want to delete this schedule item?')) return
+    if (!confirm('Are you sure you want to delete this schedule template?')) return
 
     try {
       const { error } = await supabase
@@ -222,11 +323,30 @@ export default function SchedulePage() {
         .eq('id', item.id)
 
       if (error) throw error
-      toast.success('Schedule item deleted')
+      toast.success('Schedule template deleted')
       loadData()
     } catch (error) {
       console.error('Error deleting item:', error)
       toast.error('Failed to delete item')
+    }
+  }
+
+  async function handleDeleteTask(task) {
+    if (!confirm('Are you sure you want to delete this task?')) return
+
+    try {
+      const { error } = await supabase
+        .from('daily_tasks')
+        .delete()
+        .eq('id', task.id)
+
+      if (error) throw error
+      toast.success('Task deleted')
+      setShowItemModal(false)
+      loadData()
+    } catch (error) {
+      console.error('Error deleting task:', error)
+      toast.error('Failed to delete task')
     }
   }
 
@@ -311,6 +431,21 @@ export default function SchedulePage() {
     }
   }
 
+  // Get actual tasks for a specific day and time slot
+  function getTasksForDayAndTime(dayIndex, time) {
+    const weekDates = getWeekDates()
+    const dateStr = getLocalDateString(weekDates[dayIndex])
+
+    return weekTasks.filter(task => {
+      if (task.task_date !== dateStr) return false
+      if (!task.scheduled_time) return false
+      const taskHour = parseInt(task.scheduled_time.split(':')[0])
+      const slotHour = parseInt(time.split(':')[0])
+      return taskHour === slotHour
+    })
+  }
+
+  // Get schedule blocks for a specific day and time (for reference/templates)
   function getItemsForDayAndTime(day, time) {
     return scheduleItems.filter(item => {
       if (item.day_of_week !== day) return false
@@ -427,22 +562,23 @@ export default function SchedulePage() {
           {canEditSchedule && (
             <div className="flex flex-wrap gap-2">
               <button
+                onClick={generateTasksForWeek}
+                className="px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
+                title="Generate tasks for this week from schedule templates"
+              >
+                📋 Sync Week
+              </button>
+              <button
                 onClick={() => setShowCopyDayModal(true)}
                 className="px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
               >
                 📑 Copy Day
               </button>
               <button
-                onClick={generateTasksForWeek}
-                className="px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
-              >
-                📋 Generate Tasks
-              </button>
-              <button
-                onClick={() => openCreateItem('monday', '09:00')}
+                onClick={() => openCreateItem('monday', '15:00')}
                 className="px-4 py-2 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl hover:opacity-90 transition-opacity"
               >
-                + Add Item
+                + New Schedule
               </button>
             </div>
           )}
@@ -504,31 +640,45 @@ export default function SchedulePage() {
             {TIME_SLOTS.map(time => (
               <tr key={time} className="border-t border-white/10">
                 <td className="p-2 text-white/50 text-sm">{time}</td>
-                {DAYS_OF_WEEK.map(day => {
-                  const items = getItemsForDayAndTime(day, time)
+                {DAYS_OF_WEEK.map((day, dayIndex) => {
+                  const tasks = getTasksForDayAndTime(dayIndex, time)
                   return (
                     <td key={`${day}-${time}`} className="p-1 align-top min-h-[60px]">
                       <div className="min-h-[50px]">
-                        {items.map(item => {
-                          const category = getCategoryInfo(item.category)
+                        {tasks.map(task => {
+                          const category = getCategoryInfo(task.category)
+                          const statusColors = {
+                            pending: 'border-white/20',
+                            completed: 'border-yellow-500/50 bg-yellow-500/10',
+                            approved: 'border-green-500/50 bg-green-500/10',
+                            rejected: 'border-red-500/50 bg-red-500/10'
+                          }
                           return (
                             <div
-                              key={item.id}
-                              onClick={() => canEditSchedule && openEditItem(item)}
-                              className={`p-2 rounded-lg border text-xs mb-1 ${category.color} ${canEditSchedule ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
+                              key={task.id}
+                              onClick={() => canEditSchedule && openEditTask(task)}
+                              className={`p-2 rounded-lg border text-xs mb-1 ${category.color} ${statusColors[task.status] || ''} ${canEditSchedule ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
                             >
                               <div className="flex items-center gap-1">
                                 <span>{category.icon}</span>
-                                <span className="font-medium text-white truncate">{item.title}</span>
+                                <span className={`font-medium truncate ${
+                                  task.status === 'approved' ? 'text-green-400 line-through' :
+                                  task.status === 'rejected' ? 'text-red-400 line-through' :
+                                  'text-white'
+                                }`}>{task.title}</span>
                               </div>
                               <div className="text-white/60 mt-1">
-                                {item.start_time} - {item.end_time}
+                                {task.scheduled_time}
                               </div>
-                              <div className="text-yellow-400 mt-1">+{item.star_value}⭐</div>
+                              <div className="flex items-center justify-between mt-1">
+                                <span className="text-yellow-400">+{task.star_value}⭐</span>
+                                {task.status === 'completed' && <span className="text-yellow-400 text-[10px]">Awaiting</span>}
+                                {task.status === 'approved' && <span className="text-green-400 text-[10px]">Done</span>}
+                              </div>
                             </div>
                           )
                         })}
-                        {items.length === 0 && canEditSchedule && (
+                        {tasks.length === 0 && canEditSchedule && (
                           <button
                             onClick={() => openCreateItem(day, time)}
                             className="w-full h-full min-h-[50px] rounded-lg border border-dashed border-white/10 hover:border-white/30 hover:bg-white/5 transition-all flex items-center justify-center text-white/30 hover:text-white/50"
@@ -559,13 +709,22 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      {/* Schedule Item Modal */}
+      {/* Schedule Item / Task Modal */}
       {showItemModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="glass-card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-white mb-4">
-              {editingItem ? 'Edit Schedule Item' : 'Add Schedule Item'}
+              {editingTask ? 'Edit Task' : editingItem ? 'Edit Schedule Template' : 'New Schedule Template'}
             </h3>
+
+            {/* Info badge for task vs template */}
+            {editingTask && (
+              <div className="mb-4 p-2 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <p className="text-blue-400 text-xs">
+                  Editing this task for {new Date(editingTask.task_date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                </p>
+              </div>
+            )}
 
             <div className="space-y-4">
               <div>
@@ -591,20 +750,23 @@ export default function SchedulePage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-white/70 mb-1">Day</label>
-                  <select
-                    value={itemForm.day_of_week}
-                    onChange={(e) => setItemForm({ ...itemForm, day_of_week: e.target.value })}
-                    className="select-dark"
-                  >
-                    {DAYS_OF_WEEK.map((day, i) => (
-                      <option key={day} value={day}>{DAY_LABELS[i]}</option>
-                    ))}
-                  </select>
-                </div>
+                {/* Day selector - only for schedule templates, not tasks */}
+                {!editingTask && (
+                  <div>
+                    <label className="block text-sm text-white/70 mb-1">Day</label>
+                    <select
+                      value={itemForm.day_of_week}
+                      onChange={(e) => setItemForm({ ...itemForm, day_of_week: e.target.value })}
+                      className="select-dark"
+                    >
+                      {DAYS_OF_WEEK.map((day, i) => (
+                        <option key={day} value={day}>{DAY_LABELS[i]}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
-                <div>
+                <div className={editingTask ? 'col-span-2' : ''}>
                   <label className="block text-sm text-white/70 mb-1">Category</label>
                   <select
                     value={itemForm.category}
@@ -622,7 +784,7 @@ export default function SchedulePage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-white/70 mb-1">Start Time</label>
+                  <label className="block text-sm text-white/70 mb-1">{editingTask ? 'Time' : 'Start Time'}</label>
                   <input
                     type="time"
                     value={itemForm.start_time}
@@ -631,19 +793,19 @@ export default function SchedulePage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm text-white/70 mb-1">End Time</label>
-                  <input
-                    type="time"
-                    value={itemForm.end_time}
-                    onChange={(e) => setItemForm({ ...itemForm, end_time: e.target.value })}
-                    className="input-dark"
-                  />
-                </div>
-              </div>
+                {!editingTask && (
+                  <div>
+                    <label className="block text-sm text-white/70 mb-1">End Time</label>
+                    <input
+                      type="time"
+                      value={itemForm.end_time}
+                      onChange={(e) => setItemForm({ ...itemForm, end_time: e.target.value })}
+                      className="input-dark"
+                    />
+                  </div>
+                )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className={editingTask ? '' : 'col-span-2'}>
                   <label className="block text-sm text-white/70 mb-1">Stars Reward</label>
                   <input
                     type="number"
@@ -654,7 +816,10 @@ export default function SchedulePage() {
                     className="input-dark"
                   />
                 </div>
+              </div>
 
+              {/* Repeat options - only for new schedule templates */}
+              {!editingTask && !editingItem && (
                 <div>
                   <label className="block text-sm text-white/70 mb-1">Repeat</label>
                   <select
@@ -663,40 +828,45 @@ export default function SchedulePage() {
                     className="select-dark"
                   >
                     <option value="none">One-time</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
+                    <option value="daily">Every Day</option>
+                    <option value="weekly">Every Week</option>
+                    <option value="monthly">Every Month</option>
                   </select>
                 </div>
-              </div>
+              )}
 
               {/* Recurrence Info */}
-              {itemForm.recurrence_type !== 'none' && (
+              {!editingTask && itemForm.recurrence_type !== 'none' && (
                 <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
                   <p className="text-blue-400 text-sm">
-                    {itemForm.recurrence_type === 'daily' && '📅 This task will be created for every day when you generate tasks'}
-                    {itemForm.recurrence_type === 'weekly' && `📅 This task will be created every ${DAY_LABELS[DAYS_OF_WEEK.indexOf(itemForm.day_of_week)]} when you generate tasks`}
-                    {itemForm.recurrence_type === 'monthly' && `📅 This task will be created on ${DAY_LABELS[DAYS_OF_WEEK.indexOf(itemForm.day_of_week)]} when you generate tasks (monthly schedule)`}
+                    {itemForm.recurrence_type === 'daily' && '📅 Creates a task every day when you sync the week'}
+                    {itemForm.recurrence_type === 'weekly' && `📅 Creates a task every ${DAY_LABELS[DAYS_OF_WEEK.indexOf(itemForm.day_of_week)]} when you sync the week`}
+                    {itemForm.recurrence_type === 'monthly' && `📅 Creates a task on ${DAY_LABELS[DAYS_OF_WEEK.indexOf(itemForm.day_of_week)]} once per month`}
                   </p>
                 </div>
               )}
 
-              {/* Conflict Warning */}
-              {getConflictWarning() && (
+              {/* Conflict Warning - only for schedule templates */}
+              {!editingTask && getConflictWarning() && (
                 <div className="p-3 bg-yellow-500/20 border border-yellow-500/40 rounded-xl">
-                  <p className="text-yellow-400 text-sm font-medium mb-1">⚠️ Time Conflict Detected</p>
+                  <p className="text-yellow-400 text-sm font-medium mb-1">Time Conflict</p>
                   <p className="text-yellow-400/80 text-xs">
-                    This overlaps with: {getConflictWarning().map(c => c.title).join(', ')}
+                    Overlaps with: {getConflictWarning().map(c => c.title).join(', ')}
                   </p>
                 </div>
               )}
 
               <div className="flex gap-3 justify-between mt-6">
-                {editingItem && (
+                {/* Delete button */}
+                {(editingItem || editingTask) && (
                   <button
                     onClick={() => {
-                      handleDeleteItem(editingItem)
-                      setShowItemModal(false)
+                      if (editingTask) {
+                        handleDeleteTask(editingTask)
+                      } else if (editingItem) {
+                        handleDeleteItem(editingItem)
+                        setShowItemModal(false)
+                      }
                     }}
                     className="px-4 py-2 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500/30 transition-colors"
                   >
@@ -714,7 +884,7 @@ export default function SchedulePage() {
                     onClick={handleSaveItem}
                     className="px-4 py-2 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl hover:opacity-90 transition-opacity"
                   >
-                    {editingItem ? 'Save Changes' : 'Add Item'}
+                    {editingTask ? 'Save Task' : editingItem ? 'Save Template' : 'Create'}
                   </button>
                 </div>
               </div>
