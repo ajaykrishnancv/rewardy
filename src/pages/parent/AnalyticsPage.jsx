@@ -134,9 +134,9 @@ export default function AnalyticsPage() {
       })
 
       ;(currentTasks || []).forEach(task => {
-        if (task.status === 'approved' && task.stars_reward) {
+        if (task.status === 'approved' && task.star_value) {
           const day = task.task_date
-          dailyStarsMap[day] = (dailyStarsMap[day] || 0) + task.stars_reward
+          dailyStarsMap[day] = (dailyStarsMap[day] || 0) + task.star_value
         }
       })
 
@@ -150,7 +150,7 @@ export default function AnalyticsPage() {
       const categoryMap = {}
       ;(currentTasks || []).filter(t => t.status === 'approved').forEach(task => {
         const cat = task.category || 'other'
-        categoryMap[cat] = (categoryMap[cat] || 0) + (task.stars_reward || 0)
+        categoryMap[cat] = (categoryMap[cat] || 0) + (task.star_value || 0)
       })
 
       const categoryBreakdown = Object.entries(categoryMap).map(([name, value]) => ({

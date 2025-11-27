@@ -156,6 +156,7 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             className="input-light"
             placeholder="Enter your password"
+            autoComplete="current-password"
             disabled={!selectedRole}
           />
         </div>

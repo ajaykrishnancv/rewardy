@@ -7,8 +7,8 @@ const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 's
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const TIME_SLOTS = [
-  '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00',
-  '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'
+  '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00',
+  '00:00', '01:00', '02:00', '03:00', '04:00'
 ]
 
 const TASK_CATEGORIES = [
@@ -53,7 +53,7 @@ export default function SchedulePage() {
     day_of_week: 'monday',
     start_time: '09:00',
     end_time: '10:00',
-    stars_reward: 5,
+    star_value: 5,
     is_recurring: true
   })
 
@@ -79,7 +79,7 @@ export default function SchedulePage() {
       if (child) {
         // Load schedule items
         const { data: items } = await supabase
-          .from('schedule_items')
+          .from('schedule_blocks')
           .select('*')
           .eq('child_id', child.id)
           .eq('is_active', true)
@@ -129,7 +129,7 @@ export default function SchedulePage() {
       day_of_week: day,
       start_time: time,
       end_time: incrementTime(time),
-      stars_reward: 5,
+      star_value: 5,
       is_recurring: true
     })
     setShowItemModal(true)
@@ -145,7 +145,7 @@ export default function SchedulePage() {
       day_of_week: item.day_of_week,
       start_time: item.start_time,
       end_time: item.end_time || incrementTime(item.start_time),
-      stars_reward: item.stars_reward || 5,
+      star_value: item.star_value || 5,
       is_recurring: item.is_recurring !== false
     })
     setShowItemModal(true)
@@ -173,14 +173,14 @@ export default function SchedulePage() {
         day_of_week: itemForm.day_of_week,
         start_time: itemForm.start_time,
         end_time: itemForm.end_time,
-        stars_reward: itemForm.stars_reward,
+        star_value: itemForm.star_value,
         is_recurring: itemForm.is_recurring,
         is_active: true
       }
 
       if (editingItem) {
         const { error } = await supabase
-          .from('schedule_items')
+          .from('schedule_blocks')
           .update(itemData)
           .eq('id', editingItem.id)
 
@@ -188,7 +188,7 @@ export default function SchedulePage() {
         toast.success('Schedule item updated!')
       } else {
         const { error } = await supabase
-          .from('schedule_items')
+          .from('schedule_blocks')
           .insert(itemData)
 
         if (error) throw error
@@ -208,7 +208,7 @@ export default function SchedulePage() {
 
     try {
       const { error } = await supabase
-        .from('schedule_items')
+        .from('schedule_blocks')
         .update({ is_active: false })
         .eq('id', item.id)
 
@@ -251,7 +251,7 @@ export default function SchedulePage() {
             description: item.description,
             category: item.category,
             scheduled_time: item.start_time,
-            stars_reward: item.stars_reward,
+            star_value: item.star_value,
             task_date: taskDate,
             status: 'pending',
             schedule_item_id: item.id
@@ -308,13 +308,13 @@ export default function SchedulePage() {
         day_of_week: copyToDay,
         start_time: item.start_time,
         end_time: item.end_time,
-        stars_reward: item.stars_reward,
+        star_value: item.star_value,
         is_recurring: item.is_recurring,
         is_active: true
       }))
 
       const { error } = await supabase
-        .from('schedule_items')
+        .from('schedule_blocks')
         .insert(newItems)
 
       if (error) throw error
@@ -488,7 +488,7 @@ export default function SchedulePage() {
                               <div className="text-white/60 mt-1">
                                 {item.start_time} - {item.end_time}
                               </div>
-                              <div className="text-yellow-400 mt-1">+{item.stars_reward}⭐</div>
+                              <div className="text-yellow-400 mt-1">+{item.star_value}⭐</div>
                             </div>
                           )
                         })}
@@ -560,7 +560,7 @@ export default function SchedulePage() {
                   <select
                     value={itemForm.day_of_week}
                     onChange={(e) => setItemForm({ ...itemForm, day_of_week: e.target.value })}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                    className="select-dark"
                   >
                     {DAYS_OF_WEEK.map((day, i) => (
                       <option key={day} value={day}>{DAY_LABELS[i]}</option>
@@ -573,7 +573,7 @@ export default function SchedulePage() {
                   <select
                     value={itemForm.category}
                     onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                    className="select-dark"
                   >
                     {TASK_CATEGORIES.map(cat => (
                       <option key={cat.value} value={cat.value}>
@@ -591,7 +591,7 @@ export default function SchedulePage() {
                     type="time"
                     value={itemForm.start_time}
                     onChange={(e) => setItemForm({ ...itemForm, start_time: e.target.value })}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                    className="input-dark"
                   />
                 </div>
 
@@ -601,7 +601,7 @@ export default function SchedulePage() {
                     type="time"
                     value={itemForm.end_time}
                     onChange={(e) => setItemForm({ ...itemForm, end_time: e.target.value })}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                    className="input-dark"
                   />
                 </div>
               </div>
@@ -610,8 +610,8 @@ export default function SchedulePage() {
                 <label className="block text-sm text-white/70 mb-1">Stars Reward</label>
                 <input
                   type="number"
-                  value={itemForm.stars_reward}
-                  onChange={(e) => setItemForm({ ...itemForm, stars_reward: parseInt(e.target.value) || 0 })}
+                  value={itemForm.star_value}
+                  onChange={(e) => setItemForm({ ...itemForm, star_value: parseInt(e.target.value) || 0 })}
                   min="0"
                   max="50"
                   className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
@@ -672,7 +672,7 @@ export default function SchedulePage() {
                 <select
                   value={copyFromDay}
                   onChange={(e) => setCopyFromDay(e.target.value)}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                  className="select-dark"
                 >
                   {DAYS_OF_WEEK.map((day, i) => (
                     <option key={day} value={day}>
@@ -689,7 +689,7 @@ export default function SchedulePage() {
                 <select
                   value={copyToDay}
                   onChange={(e) => setCopyToDay(e.target.value)}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                  className="select-dark"
                 >
                   {DAYS_OF_WEEK.map((day, i) => (
                     <option key={day} value={day}>

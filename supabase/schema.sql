@@ -153,7 +153,9 @@ CREATE TABLE IF NOT EXISTS schedule_templates (
 CREATE TABLE IF NOT EXISTS schedule_blocks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     template_id UUID REFERENCES schedule_templates(id) ON DELETE CASCADE,
-    day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
+    child_id UUID REFERENCES child_profiles(id) ON DELETE CASCADE,
+    family_id UUID REFERENCES families(id) ON DELETE CASCADE,
+    day_of_week VARCHAR(20) NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     title VARCHAR(100) NOT NULL,
@@ -161,6 +163,8 @@ CREATE TABLE IF NOT EXISTS schedule_blocks (
     description TEXT,
     star_value INTEGER DEFAULT 1 CHECK (star_value >= 0),
     is_mandatory BOOLEAN DEFAULT true,
+    is_recurring BOOLEAN DEFAULT true,
+    is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     CONSTRAINT valid_time_range CHECK (end_time > start_time)
 );

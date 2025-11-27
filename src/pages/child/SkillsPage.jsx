@@ -117,14 +117,14 @@ export default function SkillsPage() {
       // Calculate points from approved tasks per category
       const { data: approvedTasks } = await supabase
         .from('daily_tasks')
-        .select('category, stars_reward')
+        .select('category, star_value')
         .eq('child_id', childId)
         .eq('status', 'approved')
 
       const categoryPoints = {}
       ;(approvedTasks || []).forEach(task => {
         if (task.category) {
-          categoryPoints[task.category.toLowerCase()] = (categoryPoints[task.category.toLowerCase()] || 0) + (task.stars_reward || 1)
+          categoryPoints[task.category.toLowerCase()] = (categoryPoints[task.category.toLowerCase()] || 0) + (task.star_value || 1)
         }
       })
 

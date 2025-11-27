@@ -344,7 +344,7 @@ export default function SettingsPage() {
             <select
               value={salaryForm.pay_day}
               onChange={(e) => setSalaryForm({ ...salaryForm, pay_day: parseInt(e.target.value) })}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+              className="select-dark"
             >
               {DAYS_OF_WEEK.map((day, index) => (
                 <option key={index} value={index}>{day}</option>

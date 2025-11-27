@@ -560,7 +560,7 @@ export default function RewardsPage() {
                 <select
                   value={rewardForm.category}
                   onChange={(e) => setRewardForm({ ...rewardForm, category: e.target.value })}
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                  className="select-dark"
                 >
                   {REWARD_CATEGORIES.map(cat => (
                     <option key={cat.value} value={cat.value}>

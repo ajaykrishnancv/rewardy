@@ -250,7 +250,7 @@ export default function ChildDashboard() {
                       <span className="text-xs text-white/50">
                         {task.scheduled_time || 'Anytime'}
                       </span>
-                      <span className="badge-star text-xs">+{task.stars_reward}</span>
+                      <span className="badge-star text-xs">+{task.star_value}</span>
                     </div>
                   </div>
 

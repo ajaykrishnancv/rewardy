@@ -432,3 +432,44 @@ body {
 .animate-pulse {
   animation: pulse 1.5s ease-in-out infinite;
 }
+
+/* Dark theme select/dropdown styling */
+.select-dark {
+  @apply w-full px-4 py-2 rounded-xl text-white transition-all duration-200;
+  background-color: rgba(30, 27, 75, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.select-dark:focus {
+  @apply outline-none;
+  border-color: var(--color-neon-blue);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+}
+
+.select-dark option {
+  background-color: #1e1b4b;
+  color: #ffffff;
+  padding: 8px 12px;
+}
+
+.select-dark option:hover,
+.select-dark option:focus {
+  background-color: #312e81;
+}
+
+/* Input dark theme */
+.input-dark {
+  @apply w-full px-4 py-2 rounded-xl text-white transition-all duration-200;
+  background-color: rgba(30, 27, 75, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.input-dark:focus {
+  @apply outline-none;
+  border-color: var(--color-neon-blue);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+}
+
+.input-dark::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}

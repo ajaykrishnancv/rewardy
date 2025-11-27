@@ -25,14 +25,12 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true)
   const [childProfile, setChildProfile] = useState(null)
   const [tasks, setTasks] = useState([])
-  const [taskTemplates, setTaskTemplates] = useState([])
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [filterStatus, setFilterStatus] = useState('all')
   const [selectedTasks, setSelectedTasks] = useState([])
 
   // Modal states
   const [showTaskModal, setShowTaskModal] = useState(false)
-  const [showTemplateModal, setShowTemplateModal] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
 
   // Task form
@@ -41,7 +39,7 @@ export default function TasksPage() {
     description: '',
     category: 'academic',
     scheduled_time: '',
-    stars_reward: 5,
+    star_value: 5,
     is_bonus: false
   })
 
@@ -71,19 +69,9 @@ export default function TasksPage() {
           .select('*')
           .eq('child_id', child.id)
           .eq('task_date', selectedDate)
-          .order('scheduled_time', { ascending: true, nullsFirst: false })
+          .order('created_at', { ascending: true })
 
         setTasks(tasksData || [])
-
-        // Load task templates
-        const { data: templates } = await supabase
-          .from('task_templates')
-          .select('*')
-          .eq('family_id', user.familyId)
-          .eq('is_active', true)
-          .order('title')
-
-        setTaskTemplates(templates || [])
       }
     } catch (error) {
       console.error('Error loading data:', error)
@@ -100,7 +88,7 @@ export default function TasksPage() {
       description: '',
       category: 'academic',
       scheduled_time: '',
-      stars_reward: 5,
+      star_value: 5,
       is_bonus: false
     })
     setShowTaskModal(true)
@@ -113,7 +101,7 @@ export default function TasksPage() {
       description: task.description || '',
       category: task.category || 'other',
       scheduled_time: task.scheduled_time || '',
-      stars_reward: task.stars_reward || 5,
+      star_value: task.star_value || 5,
       is_bonus: task.is_bonus || false
     })
     setShowTaskModal(true)
@@ -128,12 +116,10 @@ export default function TasksPage() {
     try {
       const taskData = {
         child_id: childProfile.id,
-        family_id: user.familyId,
         title: taskForm.title.trim(),
         description: taskForm.description.trim() || null,
         category: taskForm.category,
-        scheduled_time: taskForm.scheduled_time || null,
-        stars_reward: taskForm.stars_reward,
+        star_value: taskForm.star_value,
         is_bonus: taskForm.is_bonus,
         task_date: selectedDate,
         status: 'pending'
@@ -204,12 +190,12 @@ export default function TasksPage() {
       if (taskError) throw taskError
 
       // Award stars
-      if (task.stars_reward > 0 && balance) {
+      if (task.star_value > 0 && balance) {
         const { error: balanceError } = await supabase
           .from('currency_balances')
           .update({
-            wallet_stars: balance.wallet_stars + task.stars_reward,
-            lifetime_stars_earned: balance.lifetime_stars_earned + task.stars_reward,
+            wallet_stars: balance.wallet_stars + task.star_value,
+            lifetime_stars_earned: balance.lifetime_stars_earned + task.star_value,
             updated_at: new Date().toISOString()
           })
           .eq('child_id', childProfile.id)
@@ -221,7 +207,7 @@ export default function TasksPage() {
           child_id: childProfile.id,
           transaction_type: 'earn',
           currency_type: 'stars',
-          amount: task.stars_reward,
+          amount: task.star_value,
           description: `Task approved: ${task.title}`,
           reference_type: 'task',
           reference_id: task.id
@@ -230,12 +216,12 @@ export default function TasksPage() {
 
       // Update quest progress (stars earned)
       await updateQuestProgress(childProfile.id, 'task_approved', {
-        starsEarned: task.stars_reward || 0
+        starsEarned: task.star_value || 0
       })
 
       // Update skill progress for the category
       if (task.category) {
-        await updateSkillProgress(childProfile.id, task.category, task.stars_reward || 1)
+        await updateSkillProgress(childProfile.id, task.category, task.star_value || 1)
       }
 
       // Check for new achievements
@@ -244,7 +230,7 @@ export default function TasksPage() {
       // Check for daily completion quests
       await updateQuestProgress(childProfile.id, 'daily_check', {})
 
-      toast.success(`Task approved! +${task.stars_reward} stars`)
+      toast.success(`Task approved! +${task.star_value} stars`)
       loadData()
     } catch (error) {
       console.error('Error approving task:', error)
@@ -328,15 +314,15 @@ export default function TasksPage() {
           .eq('id', task.id)
 
         if (taskError) throw taskError
-        totalStars += task.stars_reward || 0
+        totalStars += task.star_value || 0
 
         // Log transaction for each task
-        if (task.stars_reward > 0) {
+        if (task.star_value > 0) {
           await supabase.from('transactions').insert({
             child_id: childProfile.id,
             transaction_type: 'earn',
             currency_type: 'stars',
-            amount: task.stars_reward,
+            amount: task.star_value,
             description: `Task approved: ${task.title}`,
             reference_type: 'task',
             reference_id: task.id
@@ -367,7 +353,7 @@ export default function TasksPage() {
       const categoryPoints = {}
       for (const task of tasksToApprove) {
         if (task.category) {
-          categoryPoints[task.category] = (categoryPoints[task.category] || 0) + (task.stars_reward || 1)
+          categoryPoints[task.category] = (categoryPoints[task.category] || 0) + (task.star_value || 1)
         }
       }
       for (const [category, points] of Object.entries(categoryPoints)) {
@@ -411,19 +397,6 @@ export default function TasksPage() {
     }
   }
 
-  function applyTemplate(template) {
-    setTaskForm({
-      title: template.title,
-      description: template.description || '',
-      category: template.category || 'other',
-      scheduled_time: template.default_time || '',
-      stars_reward: template.default_stars || 5,
-      is_bonus: false
-    })
-    setShowTemplateModal(false)
-    setShowTaskModal(true)
-  }
-
   // Filter tasks
   const filteredTasks = tasks.filter(task => {
     if (filterStatus === 'all') return true
@@ -463,20 +436,12 @@ export default function TasksPage() {
             </p>
           </div>
           {canEditSchedule && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowTemplateModal(true)}
-                className="px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
-              >
-                📋 Templates
-              </button>
-              <button
-                onClick={openCreateTask}
-                className="px-4 py-2 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl hover:opacity-90 transition-opacity"
-              >
-                + Add Task
-              </button>
-            </div>
+            <button
+              onClick={openCreateTask}
+              className="px-4 py-2 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl hover:opacity-90 transition-opacity"
+            >
+              + Add Task
+            </button>
           )}
         </div>
       </div>
@@ -526,7 +491,7 @@ export default function TasksPage() {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+              className="select-dark"
             >
               <option value="all">All ({stats.total})</option>
               <option value="pending">Pending ({stats.pending})</option>
@@ -692,7 +657,7 @@ export default function TasksPage() {
                         <span className="text-xs text-white/50 bg-white/10 px-2 py-1 rounded">
                           {category.label}
                         </span>
-                        <span className="badge-star text-xs">+{task.stars_reward}</span>
+                        <span className="badge-star text-xs">+{task.star_value}</span>
                         {task.is_bonus && (
                           <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">
                             Bonus
@@ -830,7 +795,7 @@ export default function TasksPage() {
                   <select
                     value={taskForm.category}
                     onChange={(e) => setTaskForm({ ...taskForm, category: e.target.value })}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                    className="select-dark"
                   >
                     {TASK_CATEGORIES.map(cat => (
                       <option key={cat.value} value={cat.value}>
@@ -846,7 +811,7 @@ export default function TasksPage() {
                     type="time"
                     value={taskForm.scheduled_time}
                     onChange={(e) => setTaskForm({ ...taskForm, scheduled_time: e.target.value })}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                    className="input-dark"
                   />
                 </div>
               </div>
@@ -855,11 +820,11 @@ export default function TasksPage() {
                 <label className="block text-sm text-white/70 mb-1">Stars Reward</label>
                 <input
                   type="number"
-                  value={taskForm.stars_reward}
-                  onChange={(e) => setTaskForm({ ...taskForm, stars_reward: parseInt(e.target.value) || 0 })}
+                  value={taskForm.star_value}
+                  onChange={(e) => setTaskForm({ ...taskForm, star_value: parseInt(e.target.value) || 0 })}
                   min="0"
                   max="50"
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                  className="input-dark"
                 />
               </div>
 
@@ -892,60 +857,6 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Templates Modal */}
-      {showTemplateModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-white mb-4">Task Templates</h3>
-
-            {taskTemplates.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-white/60">No templates yet</p>
-                <p className="text-sm text-white/40 mt-1">
-                  Templates help you quickly add recurring tasks
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {taskTemplates.map(template => (
-                  <button
-                    key={template.id}
-                    onClick={() => applyTemplate(template)}
-                    className="w-full p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{getCategoryInfo(template.category).icon}</span>
-                      <div>
-                        <p className="font-medium text-white">{template.title}</p>
-                        <p className="text-sm text-white/60">+{template.default_stars || 5} stars</p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-6">
-              <button
-                onClick={() => {
-                  setShowTemplateModal(false)
-                  openCreateTask()
-                }}
-                className="w-full px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
-              >
-                Create Without Template
-              </button>
-            </div>
-
-            <button
-              onClick={() => setShowTemplateModal(false)}
-              className="w-full mt-2 px-4 py-2 text-white/60 hover:text-white transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

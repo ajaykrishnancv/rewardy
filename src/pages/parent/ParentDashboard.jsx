@@ -102,7 +102,7 @@ export default function ParentDashboard() {
 
         if (todayTasks) {
           const completed = todayTasks.filter(t => t.status === 'approved').length
-          const starsEarned = todayTasks.filter(t => t.status === 'approved').reduce((sum, t) => sum + (t.stars_reward || 0), 0)
+          const starsEarned = todayTasks.filter(t => t.status === 'approved').reduce((sum, t) => sum + (t.star_value || 0), 0)
           setTodayStats({
             tasksCompleted: completed,
             tasksTotal: todayTasks.length,
@@ -133,12 +133,12 @@ export default function ParentDashboard() {
       if (taskError) throw taskError
 
       // Award stars to child
-      if (task.stars_reward > 0 && currencyBalance) {
+      if (task.star_value > 0 && currencyBalance) {
         const { error: balanceError } = await supabase
           .from('currency_balances')
           .update({
-            wallet_stars: currencyBalance.wallet_stars + task.stars_reward,
-            lifetime_stars_earned: currencyBalance.lifetime_stars_earned + task.stars_reward,
+            wallet_stars: currencyBalance.wallet_stars + task.star_value,
+            lifetime_stars_earned: currencyBalance.lifetime_stars_earned + task.star_value,
             updated_at: new Date().toISOString()
           })
           .eq('child_id', childProfile.id)
@@ -150,7 +150,7 @@ export default function ParentDashboard() {
           child_id: childProfile.id,
           transaction_type: 'earn',
           currency_type: 'stars',
-          amount: task.stars_reward,
+          amount: task.star_value,
           description: `Task approved: ${task.title}`,
           reference_type: 'task',
           reference_id: task.id
@@ -158,14 +158,14 @@ export default function ParentDashboard() {
 
         setCurrencyBalance(prev => ({
           ...prev,
-          wallet_stars: prev.wallet_stars + task.stars_reward,
-          lifetime_stars_earned: prev.lifetime_stars_earned + task.stars_reward
+          wallet_stars: prev.wallet_stars + task.star_value,
+          lifetime_stars_earned: prev.lifetime_stars_earned + task.star_value
         }))
       }
 
       // Remove from pending list
       setPendingTasks(prev => prev.filter(t => t.id !== task.id))
-      toast.success(`Task approved! +${task.stars_reward} stars`)
+      toast.success(`Task approved! +${task.star_value} stars`)
       loadDashboardData()
     } catch (error) {
       console.error('Error approving task:', error)
@@ -423,7 +423,7 @@ export default function ParentDashboard() {
                       <p className="font-medium text-white">{task.title}</p>
                       <p className="text-sm text-white/60">{task.description}</p>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="badge-star">+{task.stars_reward} stars</span>
+                        <span className="badge-star">+{task.star_value} stars</span>
                         {task.subject && (
                           <span className="text-xs text-white/50">{task.subject}</span>
                         )}

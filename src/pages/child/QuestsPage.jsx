@@ -158,8 +158,8 @@ export default function QuestsPage() {
     pending: todaysTasks.filter(t => t.status === 'pending').length,
     completed: todaysTasks.filter(t => t.status === 'completed' || t.status === 'approved').length,
     approved: todaysTasks.filter(t => t.status === 'approved').length,
-    potentialStars: todaysTasks.reduce((sum, t) => sum + (t.stars_reward || 0), 0),
-    earnedStars: todaysTasks.filter(t => t.status === 'approved').reduce((sum, t) => sum + (t.stars_reward || 0), 0)
+    potentialStars: todaysTasks.reduce((sum, t) => sum + (t.star_value || 0), 0),
+    earnedStars: todaysTasks.filter(t => t.status === 'approved').reduce((sum, t) => sum + (t.star_value || 0), 0)
   }
 
   const completionRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0
@@ -316,7 +316,7 @@ export default function QuestsPage() {
                             🕐 {task.scheduled_time}
                           </span>
                         )}
-                        <span className="badge-star text-sm">+{task.stars_reward} ⭐</span>
+                        <span className="badge-star text-sm">+{task.star_value} ⭐</span>
                         {task.is_bonus && (
                           <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">
                             Bonus
