@@ -119,6 +119,8 @@ export default function ParentDashboard() {
 
   async function handleApproveTask(task) {
     try {
+      const starValue = task.star_value || 0
+
       // Update task status
       const { error: taskError } = await supabase
         .from('daily_tasks')
@@ -132,12 +134,12 @@ export default function ParentDashboard() {
       if (taskError) throw taskError
 
       // Award stars to child
-      if (task.star_value > 0 && currencyBalance) {
+      if (starValue > 0 && currencyBalance) {
         const { error: balanceError } = await supabase
           .from('currency_balances')
           .update({
-            wallet_stars: currencyBalance.wallet_stars + task.star_value,
-            lifetime_stars_earned: currencyBalance.lifetime_stars_earned + task.star_value,
+            wallet_stars: currencyBalance.wallet_stars + starValue,
+            lifetime_stars_earned: currencyBalance.lifetime_stars_earned + starValue,
             updated_at: new Date().toISOString()
           })
           .eq('child_id', childProfile.id)
@@ -149,7 +151,7 @@ export default function ParentDashboard() {
           child_id: childProfile.id,
           transaction_type: 'earn',
           currency_type: 'stars',
-          amount: task.star_value,
+          amount: starValue,
           description: `Task approved: ${task.title}`,
           reference_type: 'task',
           reference_id: task.id
@@ -157,14 +159,14 @@ export default function ParentDashboard() {
 
         setCurrencyBalance(prev => ({
           ...prev,
-          wallet_stars: prev.wallet_stars + task.star_value,
-          lifetime_stars_earned: prev.lifetime_stars_earned + task.star_value
+          wallet_stars: prev.wallet_stars + starValue,
+          lifetime_stars_earned: prev.lifetime_stars_earned + starValue
         }))
       }
 
       // Remove from pending list
       setPendingTasks(prev => prev.filter(t => t.id !== task.id))
-      toast.success(`Task approved! +${task.star_value} stars`)
+      toast.success(`Task approved! +${starValue} stars`)
       loadDashboardData()
     } catch (error) {
       console.error('Error approving task:', error)
@@ -422,7 +424,7 @@ export default function ParentDashboard() {
                       <p className="font-medium text-white">{task.title}</p>
                       <p className="text-sm text-white/60">{task.description}</p>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="badge-star">+{task.star_value} stars</span>
+                        <span className="badge-star">+{task.star_value || 0} stars</span>
                         {task.subject && (
                           <span className="text-xs text-white/50">{task.subject}</span>
                         )}

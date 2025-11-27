@@ -178,6 +178,8 @@ export default function TasksPage() {
 
   async function handleApproveTask(task) {
     try {
+      const starValue = task.star_value || 0
+
       // Get current balance
       const { data: balance } = await supabase
         .from('currency_balances')
@@ -198,12 +200,12 @@ export default function TasksPage() {
       if (taskError) throw taskError
 
       // Award stars
-      if (task.star_value > 0 && balance) {
+      if (starValue > 0 && balance) {
         const { error: balanceError } = await supabase
           .from('currency_balances')
           .update({
-            wallet_stars: balance.wallet_stars + task.star_value,
-            lifetime_stars_earned: balance.lifetime_stars_earned + task.star_value,
+            wallet_stars: balance.wallet_stars + starValue,
+            lifetime_stars_earned: balance.lifetime_stars_earned + starValue,
             updated_at: new Date().toISOString()
           })
           .eq('child_id', childProfile.id)
@@ -215,7 +217,7 @@ export default function TasksPage() {
           child_id: childProfile.id,
           transaction_type: 'earn',
           currency_type: 'stars',
-          amount: task.star_value,
+          amount: starValue,
           description: `Task approved: ${task.title}`,
           reference_type: 'task',
           reference_id: task.id
@@ -224,12 +226,12 @@ export default function TasksPage() {
 
       // Update quest progress (stars earned)
       await updateQuestProgress(childProfile.id, 'task_approved', {
-        starsEarned: task.star_value || 0
+        starsEarned: starValue
       })
 
       // Update skill progress for the category
       if (task.category) {
-        await updateSkillProgress(childProfile.id, task.category, task.star_value || 1)
+        await updateSkillProgress(childProfile.id, task.category, starValue || 1)
       }
 
       // Check for new achievements
@@ -238,7 +240,7 @@ export default function TasksPage() {
       // Check for daily completion quests
       await updateQuestProgress(childProfile.id, 'daily_check', {})
 
-      toast.success(`Task approved! +${task.star_value} stars`)
+      toast.success(`Task approved! +${starValue} stars`)
       loadData()
     } catch (error) {
       console.error('Error approving task:', error)
@@ -312,6 +314,8 @@ export default function TasksPage() {
 
       // Approve each task
       for (const task of tasksToApprove) {
+        const starValue = task.star_value || 0
+
         const { error: taskError } = await supabase
           .from('daily_tasks')
           .update({
@@ -322,15 +326,15 @@ export default function TasksPage() {
           .eq('id', task.id)
 
         if (taskError) throw taskError
-        totalStars += task.star_value || 0
+        totalStars += starValue
 
         // Log transaction for each task
-        if (task.star_value > 0) {
+        if (starValue > 0) {
           await supabase.from('transactions').insert({
             child_id: childProfile.id,
             transaction_type: 'earn',
             currency_type: 'stars',
-            amount: task.star_value,
+            amount: starValue,
             description: `Task approved: ${task.title}`,
             reference_type: 'task',
             reference_id: task.id
