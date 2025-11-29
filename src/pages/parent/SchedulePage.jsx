@@ -671,10 +671,10 @@ export default function SchedulePage() {
                           const category = getCategoryInfo(task.category)
                           const overdue = isTaskOverdue(task)
                           const statusColors = {
-                            pending: overdue ? 'border-pink-500/50 bg-pink-500/20' : 'border-orange-500/50 bg-orange-500/20',
+                            pending: overdue ? 'border-red-500/50 bg-red-500/20' : 'border-orange-500/50 bg-orange-500/20',
                             completed: 'border-green-500/50 bg-green-500/20',
                             approved: 'border-green-500/50 bg-green-500/20',
-                            rejected: 'border-red-500/50 bg-red-500/20'
+                            rejected: 'border-gray-500/50 bg-gray-500/20'
                           }
                           return (
                             <div
@@ -695,9 +695,10 @@ export default function SchedulePage() {
                               </div>
                               <div className="flex items-center justify-between mt-1">
                                 <span className="text-yellow-400">+{task.star_value}⭐</span>
-                                {overdue && <span className="text-pink-400 text-[10px] font-medium">Overdue</span>}
-                                {task.status === 'completed' && <span className="text-yellow-400 text-[10px]">Awaiting</span>}
+                                {overdue && <span className="text-red-400 text-[10px] font-medium">Overdue</span>}
+                                {task.status === 'completed' && <span className="text-green-400 text-[10px]">Awaiting</span>}
                                 {task.status === 'approved' && <span className="text-green-400 text-[10px]">Done</span>}
+                                {task.status === 'rejected' && <span className="text-gray-400 text-[10px]">Rejected</span>}
                               </div>
                             </div>
                           )
