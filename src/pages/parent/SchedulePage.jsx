@@ -14,6 +14,24 @@ function getLocalDateString(date = new Date()) {
   return `${year}-${month}-${day}`
 }
 
+// Helper to format 24-hour time to 12-hour AM/PM
+function formatTimeToAMPM(timeStr) {
+  if (!timeStr) return ''
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const displayHours = hours % 12 || 12
+  return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`
+}
+
+// Helper to check if a task is overdue (by day only)
+function isTaskOverdue(task) {
+  if (task.status !== 'pending') return false
+  if (!task.task_date) return false
+
+  const today = getLocalDateString()
+  return task.task_date < today
+}
+
 const TIME_SLOTS = [
   '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00',
   '00:00', '01:00', '02:00', '03:00', '04:00'
@@ -54,6 +72,7 @@ export default function SchedulePage() {
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [copyFromDay, setCopyFromDay] = useState('monday')
   const [copyToDay, setCopyToDay] = useState('tuesday')
+  const [modalKey, setModalKey] = useState(0)
 
   // Form state
   const [itemForm, setItemForm] = useState({
@@ -159,6 +178,7 @@ export default function SchedulePage() {
       star_value: 5,
       recurrence_type: 'weekly'
     })
+    setModalKey(k => k + 1)
     setShowItemModal(true)
   }
 
@@ -176,6 +196,7 @@ export default function SchedulePage() {
       star_value: item.star_value || 5,
       recurrence_type: item.recurrence_type || (item.is_recurring ? 'weekly' : 'none')
     })
+    setModalKey(k => k + 1)
     setShowItemModal(true)
   }
 
@@ -194,6 +215,7 @@ export default function SchedulePage() {
       star_value: task.star_value || 5,
       recurrence_type: 'none' // Tasks are single instances
     })
+    setModalKey(k => k + 1)
     setShowItemModal(true)
   }
 
@@ -639,7 +661,7 @@ export default function SchedulePage() {
           <tbody>
             {TIME_SLOTS.map(time => (
               <tr key={time} className="border-t border-white/10">
-                <td className="p-2 text-white/50 text-sm">{time}</td>
+                <td className="p-2 text-white/50 text-sm">{formatTimeToAMPM(time)}</td>
                 {DAYS_OF_WEEK.map((day, dayIndex) => {
                   const tasks = getTasksForDayAndTime(dayIndex, time)
                   return (
@@ -647,8 +669,9 @@ export default function SchedulePage() {
                       <div className="min-h-[50px]">
                         {tasks.map(task => {
                           const category = getCategoryInfo(task.category)
+                          const overdue = isTaskOverdue(task)
                           const statusColors = {
-                            pending: 'border-white/20',
+                            pending: overdue ? 'border-pink-500/50 bg-pink-500/20' : 'border-white/20',
                             completed: 'border-yellow-500/50 bg-yellow-500/10',
                             approved: 'border-green-500/50 bg-green-500/10',
                             rejected: 'border-red-500/50 bg-red-500/10'
@@ -657,7 +680,7 @@ export default function SchedulePage() {
                             <div
                               key={task.id}
                               onClick={() => canEditSchedule && openEditTask(task)}
-                              className={`p-2 rounded-lg border text-xs mb-1 ${category.color} ${statusColors[task.status] || ''} ${canEditSchedule ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
+                              className={`p-2 rounded-lg border text-xs mb-1 ${overdue ? 'bg-pink-500/20 border-pink-500/50' : category.color} ${statusColors[task.status] || ''} ${canEditSchedule ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
                             >
                               <div className="flex items-center gap-1">
                                 <span>{category.icon}</span>
@@ -668,10 +691,11 @@ export default function SchedulePage() {
                                 }`}>{task.title}</span>
                               </div>
                               <div className="text-white/60 mt-1">
-                                {task.scheduled_time}
+                                {formatTimeToAMPM(task.scheduled_time)}
                               </div>
                               <div className="flex items-center justify-between mt-1">
                                 <span className="text-yellow-400">+{task.star_value}⭐</span>
+                                {overdue && <span className="text-pink-400 text-[10px] font-medium">Overdue</span>}
                                 {task.status === 'completed' && <span className="text-yellow-400 text-[10px]">Awaiting</span>}
                                 {task.status === 'approved' && <span className="text-green-400 text-[10px]">Done</span>}
                               </div>
@@ -711,8 +735,12 @@ export default function SchedulePage() {
 
       {/* Schedule Item / Task Modal */}
       {showItemModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div
+          key={`modal-${modalKey}`}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+          onClick={(e) => e.target === e.currentTarget && setShowItemModal(false)}
+        >
+          <div className="glass-card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-white mb-4">
               {editingTask ? 'Edit Task' : editingItem ? 'Edit Schedule Template' : 'New Schedule Template'}
             </h3>
@@ -895,7 +923,7 @@ export default function SchedulePage() {
 
       {/* Copy Day Modal */}
       {showCopyDayModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="glass-card p-6 max-w-sm w-full">
             <h3 className="text-lg font-semibold text-white mb-4">Copy Day Schedule</h3>
 

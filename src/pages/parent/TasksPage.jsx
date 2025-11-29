@@ -25,6 +25,15 @@ function getLocalDateString(date = new Date()) {
   return `${year}-${month}-${day}`
 }
 
+// Helper to format 24-hour time to 12-hour AM/PM
+function formatTimeToAMPM(timeStr) {
+  if (!timeStr) return ''
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const displayHours = hours % 12 || 12
+  return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`
+}
+
 export default function TasksPage() {
   const { user, hasPermission } = useAuthStore()
   const canEditSchedule = hasPermission('editSchedule')
@@ -40,6 +49,7 @@ export default function TasksPage() {
   // Modal states
   const [showTaskModal, setShowTaskModal] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
+  const [modalKey, setModalKey] = useState(0)
 
   // Task form
   const [taskForm, setTaskForm] = useState({
@@ -48,6 +58,7 @@ export default function TasksPage() {
     category: 'academic',
     scheduled_time: '',
     star_value: 5,
+    gem_value: 0,
     is_bonus: false,
     recurrence_type: 'none', // none, daily, weekly, monthly
     recurrence_count: 7 // number of occurrences to create
@@ -99,10 +110,12 @@ export default function TasksPage() {
       category: 'academic',
       scheduled_time: '',
       star_value: 5,
+      gem_value: 0,
       is_bonus: false,
       recurrence_type: 'none',
       recurrence_count: 7
     })
+    setModalKey(k => k + 1)
     setShowTaskModal(true)
   }
 
@@ -114,10 +127,12 @@ export default function TasksPage() {
       category: task.category || 'other',
       scheduled_time: task.scheduled_time || '',
       star_value: task.star_value || 5,
+      gem_value: task.gem_value || 0,
       is_bonus: task.is_bonus || false,
       recurrence_type: 'none', // Don't show recurrence when editing
       recurrence_count: 7
     })
+    setModalKey(k => k + 1)
     setShowTaskModal(true)
   }
 
@@ -154,6 +169,7 @@ export default function TasksPage() {
         category: taskForm.category,
         scheduled_time: taskForm.scheduled_time || null,
         star_value: taskForm.star_value,
+        gem_value: taskForm.gem_value || 0,
         is_bonus: taskForm.is_bonus,
         status: 'pending'
       }
@@ -712,13 +728,16 @@ export default function TasksPage() {
                       <div className="flex flex-wrap items-center gap-2 mt-2">
                         {task.scheduled_time && (
                           <span className="text-xs text-white/50 bg-white/10 px-2 py-1 rounded">
-                            🕐 {task.scheduled_time}
+                            🕐 {formatTimeToAMPM(task.scheduled_time)}
                           </span>
                         )}
                         <span className="text-xs text-white/50 bg-white/10 px-2 py-1 rounded">
                           {category.label}
                         </span>
                         <span className="badge-star text-xs">+{task.star_value}</span>
+                        {task.gem_value > 0 && (
+                          <span className="badge-gem text-xs">+{task.gem_value}</span>
+                        )}
                         {task.is_bonus && (
                           <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">
                             Bonus
@@ -821,8 +840,12 @@ export default function TasksPage() {
 
       {/* Task Modal */}
       {showTaskModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass-card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div
+          key={`modal-${modalKey}`}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+          onClick={(e) => e.target === e.currentTarget && setShowTaskModal(false)}
+        >
+          <div className="glass-card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-white mb-4">
               {editingTask ? 'Edit Task' : 'Create Task'}
             </h3>
@@ -877,18 +900,6 @@ export default function TasksPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm text-white/70 mb-1">Stars Reward</label>
-                <input
-                  type="number"
-                  value={taskForm.star_value}
-                  onChange={(e) => setTaskForm({ ...taskForm, star_value: parseInt(e.target.value) || 0 })}
-                  min="0"
-                  max="50"
-                  className="input-dark"
-                />
-              </div>
-
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -898,6 +909,41 @@ export default function TasksPage() {
                 />
                 <span className="text-sm text-white/70">This is a bonus task (optional extra credit)</span>
               </label>
+
+              {/* Rewards - Stars and Gems */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-white/70 mb-1">Stars Reward</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-yellow-400">⭐</span>
+                    <input
+                      type="number"
+                      value={taskForm.star_value}
+                      onChange={(e) => setTaskForm({ ...taskForm, star_value: parseInt(e.target.value) || 0 })}
+                      min="0"
+                      max="50"
+                      className="input-dark pl-9"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-white/70 mb-1">
+                    Gems Reward {!taskForm.is_bonus && <span className="text-white/40">(Bonus only)</span>}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400">💎</span>
+                    <input
+                      type="number"
+                      value={taskForm.gem_value}
+                      onChange={(e) => setTaskForm({ ...taskForm, gem_value: parseInt(e.target.value) || 0 })}
+                      min="0"
+                      max="10"
+                      disabled={!taskForm.is_bonus}
+                      className={`input-dark pl-9 ${!taskForm.is_bonus ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    />
+                  </div>
+                </div>
+              </div>
 
               {/* Recurring Options - Only show when creating new tasks */}
               {!editingTask && (

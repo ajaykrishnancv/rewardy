@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
+import { updateQuestProgress, checkAchievements } from '../../services/gamificationService'
 import toast from 'react-hot-toast'
 
 // Helper to get local date string (YYYY-MM-DD) without timezone issues
@@ -129,6 +130,7 @@ export default function ParentDashboard() {
   async function handleApproveTask(task) {
     try {
       const starValue = task.star_value || 0
+      const gemValue = task.gem_value || 0
 
       // Update task status
       const { error: taskError } = await supabase
@@ -173,9 +175,54 @@ export default function ParentDashboard() {
         }))
       }
 
+      // Award gems to child (for bonus tasks)
+      if (gemValue > 0 && currencyBalance) {
+        const { error: gemError } = await supabase
+          .from('currency_balances')
+          .update({
+            gems: currencyBalance.gems + gemValue,
+            lifetime_gems_earned: (currencyBalance.lifetime_gems_earned || 0) + gemValue,
+            updated_at: new Date().toISOString()
+          })
+          .eq('child_id', childProfile.id)
+
+        if (gemError) throw gemError
+
+        // Log gem transaction
+        await supabase.from('transactions').insert({
+          child_id: childProfile.id,
+          transaction_type: 'earn',
+          currency_type: 'gems',
+          amount: gemValue,
+          description: `Bonus task approved: ${task.title}`,
+          reference_type: 'task',
+          reference_id: task.id
+        })
+
+        setCurrencyBalance(prev => ({
+          ...prev,
+          gems: prev.gems + gemValue,
+          lifetime_gems_earned: (prev.lifetime_gems_earned || 0) + gemValue
+        }))
+      }
+
+      // Update quest progress (on approval)
+      await updateQuestProgress(childProfile.id, 'task_approved', {
+        starsEarned: starValue
+      })
+
+      // Check for new achievements
+      await checkAchievements(childProfile.id)
+
       // Remove from pending list
       setPendingTasks(prev => prev.filter(t => t.id !== task.id))
-      toast.success(`Task approved! +${starValue} stars`)
+
+      // Show appropriate toast message
+      const rewardMsg = []
+      if (starValue > 0) rewardMsg.push(`+${starValue} stars`)
+      if (gemValue > 0) rewardMsg.push(`+${gemValue} gems`)
+      toast.success(`Task approved! ${rewardMsg.join(', ')}`)
+
       loadDashboardData()
     } catch (error) {
       console.error('Error approving task:', error)

@@ -11,6 +11,20 @@ function getLocalDateString(date = new Date()) {
   return `${year}-${month}-${day}`
 }
 
+const DAILY_QUEST_TEMPLATES = [
+  { id: 'task_tackler', title: 'Task Tackler', description: 'Complete tasks today', defaultTarget: 3, rewardStars: 5, rewardGems: 0 },
+  { id: 'star_hunter', title: 'Star Hunter', description: 'Earn stars today', defaultTarget: 15, rewardStars: 3, rewardGems: 1 },
+  { id: 'early_bird', title: 'Early Bird', description: 'Complete tasks before noon', defaultTarget: 2, rewardStars: 5, rewardGems: 0 },
+  { id: 'no_skips', title: 'No Skips', description: 'Complete all mandatory tasks', defaultTarget: 1, rewardStars: 10, rewardGems: 1 }
+]
+
+const WEEKLY_QUEST_TEMPLATES = [
+  { id: 'weekly_warrior', title: 'Weekly Warrior', description: 'Complete tasks this week', defaultTarget: 20, rewardStars: 20, rewardGems: 3 },
+  { id: 'savings_star', title: 'Savings Star', description: 'Save stars to savings', defaultTarget: 30, rewardStars: 10, rewardGems: 2 },
+  { id: 'perfect_week', title: 'Perfect Week', description: 'Get all tasks approved for days', defaultTarget: 5, rewardStars: 25, rewardGems: 5 },
+  { id: 'streak_builder', title: 'Streak Builder', description: 'Maintain a day streak', defaultTarget: 5, rewardStars: 15, rewardGems: 2 }
+]
+
 export default function SettingsPage() {
   const { user } = useAuthStore()
   const [loading, setLoading] = useState(true)
@@ -20,6 +34,18 @@ export default function SettingsPage() {
   const [salaryPayments, setSalaryPayments] = useState([])
   const [showPayModal, setShowPayModal] = useState(false)
   const [currentWeekStats, setCurrentWeekStats] = useState(null)
+
+  // Challenges state
+  const [activeQuests, setActiveQuests] = useState([])
+  const [showChallengeModal, setShowChallengeModal] = useState(false)
+  const [challengeForm, setChallengeForm] = useState({
+    quest_type: 'daily',
+    title: '',
+    description: '',
+    target_value: 3,
+    reward_stars: 5,
+    reward_gems: 0
+  })
 
   const [salaryForm, setSalaryForm] = useState({
     is_enabled: false,
@@ -83,6 +109,17 @@ export default function SettingsPage() {
 
         // Calculate current week stats
         await loadCurrentWeekStats(child.id)
+
+        // Load active quests
+        const today = getLocalDateString()
+        const { data: quests } = await supabase
+          .from('quests')
+          .select('*')
+          .eq('child_id', child.id)
+          .gte('end_date', today)
+          .order('created_at', { ascending: false })
+
+        setActiveQuests(quests || [])
       }
     } catch (error) {
       console.error('Error loading settings:', error)
@@ -255,6 +292,97 @@ export default function SettingsPage() {
   }
 
   const projectedSalary = currentWeekStats ? calculateSalary(currentWeekStats.completionRate) : 0
+
+  // Challenge management functions
+  async function handleCreateChallenge() {
+    if (!childProfile || !challengeForm.title.trim()) {
+      toast.error('Please enter a title')
+      return
+    }
+
+    try {
+      setSaving(true)
+      const today = getLocalDateString()
+
+      // Calculate end date based on quest type
+      const endDate = new Date()
+      if (challengeForm.quest_type === 'daily') {
+        // Daily quests end today
+      } else if (challengeForm.quest_type === 'weekly') {
+        // Weekly quests end in 7 days
+        endDate.setDate(endDate.getDate() + 6)
+      } else {
+        // Special quests end in 30 days
+        endDate.setDate(endDate.getDate() + 30)
+      }
+
+      const { error } = await supabase
+        .from('quests')
+        .insert({
+          child_id: childProfile.id,
+          quest_type: challengeForm.quest_type,
+          title: challengeForm.title.trim(),
+          description: challengeForm.description.trim() || null,
+          target_value: challengeForm.target_value,
+          current_value: 0,
+          reward_stars: challengeForm.reward_stars,
+          reward_gems: challengeForm.reward_gems,
+          start_date: today,
+          end_date: getLocalDateString(endDate),
+          is_completed: false
+        })
+
+      if (error) throw error
+
+      toast.success('Challenge created!')
+      setShowChallengeModal(false)
+      setChallengeForm({
+        quest_type: 'daily',
+        title: '',
+        description: '',
+        target_value: 3,
+        reward_stars: 5,
+        reward_gems: 0
+      })
+      loadSettings()
+    } catch (error) {
+      console.error('Error creating challenge:', error)
+      toast.error('Failed to create challenge')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDeleteChallenge(questId) {
+    if (!confirm('Delete this challenge?')) return
+
+    try {
+      const { error } = await supabase
+        .from('quests')
+        .delete()
+        .eq('id', questId)
+
+      if (error) throw error
+
+      toast.success('Challenge deleted')
+      setActiveQuests(prev => prev.filter(q => q.id !== questId))
+    } catch (error) {
+      console.error('Error deleting challenge:', error)
+      toast.error('Failed to delete challenge')
+    }
+  }
+
+  function handleUseTemplate(template, type) {
+    setChallengeForm({
+      quest_type: type,
+      title: template.title,
+      description: template.description,
+      target_value: template.defaultTarget,
+      reward_stars: template.rewardStars,
+      reward_gems: template.rewardGems
+    })
+    setShowChallengeModal(true)
+  }
 
   if (loading) {
     return (
@@ -445,6 +573,147 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Challenges Management */}
+      <div className="glass-card p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <span>🏆</span> Challenges
+          </h2>
+          <button
+            onClick={() => {
+              setChallengeForm({
+                quest_type: 'daily',
+                title: '',
+                description: '',
+                target_value: 3,
+                reward_stars: 5,
+                reward_gems: 0
+              })
+              setShowChallengeModal(true)
+            }}
+            className="px-4 py-2 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            + New Challenge
+          </button>
+        </div>
+
+        {/* Quick Templates */}
+        <div className="mb-6">
+          <p className="text-sm text-white/70 mb-3">Quick Add from Templates:</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+            {DAILY_QUEST_TEMPLATES.slice(0, 4).map(template => (
+              <button
+                key={template.id}
+                onClick={() => handleUseTemplate(template, 'daily')}
+                className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-left hover:bg-blue-500/20 transition-colors"
+              >
+                <p className="text-white text-sm font-medium">{template.title}</p>
+                <p className="text-blue-400 text-xs">Daily • +{template.rewardStars}⭐</p>
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {WEEKLY_QUEST_TEMPLATES.slice(0, 4).map(template => (
+              <button
+                key={template.id}
+                onClick={() => handleUseTemplate(template, 'weekly')}
+                className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl text-left hover:bg-purple-500/20 transition-colors"
+              >
+                <p className="text-white text-sm font-medium">{template.title}</p>
+                <p className="text-purple-400 text-xs">Weekly • +{template.rewardStars}⭐ +{template.rewardGems}💎</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Active Challenges */}
+        <div>
+          <p className="text-sm text-white/70 mb-3">Active Challenges ({activeQuests.filter(q => !q.is_completed).length})</p>
+          {activeQuests.length === 0 ? (
+            <div className="text-center py-8 text-white/50">
+              <p>No active challenges</p>
+              <p className="text-sm">Create one using the templates above or click "New Challenge"</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {activeQuests.map(quest => {
+                const progress = quest.target_value > 0
+                  ? Math.min((quest.current_value / quest.target_value) * 100, 100)
+                  : 0
+
+                return (
+                  <div
+                    key={quest.id}
+                    className={`p-4 rounded-xl border ${
+                      quest.is_completed
+                        ? 'bg-green-500/10 border-green-500/30'
+                        : 'bg-white/5 border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className={`font-medium ${quest.is_completed ? 'text-green-400' : 'text-white'}`}>
+                            {quest.title}
+                          </p>
+                          <span className={`px-2 py-0.5 rounded-full text-xs ${
+                            quest.quest_type === 'daily' ? 'bg-blue-500/20 text-blue-400' :
+                            quest.quest_type === 'weekly' ? 'bg-purple-500/20 text-purple-400' :
+                            'bg-yellow-500/20 text-yellow-400'
+                          }`}>
+                            {quest.quest_type}
+                          </span>
+                          {quest.is_completed && (
+                            <span className="text-green-400 text-xs">✓ Complete</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-white/60">{quest.description}</p>
+                      </div>
+                      {!quest.is_completed && (
+                        <button
+                          onClick={() => handleDeleteChallenge(quest.id)}
+                          className="text-red-400/60 hover:text-red-400 p-1"
+                          title="Delete challenge"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="progress-bar h-2 mb-2">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          quest.is_completed ? 'bg-green-500' : 'bg-gradient-to-r from-neon-blue to-neon-purple'
+                        }`}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-white/60">
+                        {quest.current_value} / {quest.target_value}
+                      </span>
+                      <div className="flex gap-2">
+                        {quest.reward_stars > 0 && (
+                          <span className="text-yellow-400">+{quest.reward_stars}⭐</span>
+                        )}
+                        {quest.reward_gems > 0 && (
+                          <span className="text-purple-400">+{quest.reward_gems}💎</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-white/40 mt-2">
+                      Ends: {new Date(quest.end_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Payment History */}
       {salaryPayments.length > 0 && (
         <div className="glass-card p-6">
@@ -477,7 +746,7 @@ export default function SettingsPage() {
 
       {/* Pay Confirmation Modal */}
       {showPayModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="glass-card p-6 max-w-sm w-full">
             <h3 className="text-lg font-semibold text-white mb-4">Confirm Salary Payment</h3>
 
@@ -515,6 +784,109 @@ export default function SettingsPage() {
                   className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
                   {saving ? 'Paying...' : 'Pay Salary'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Challenge Creation Modal */}
+      {showChallengeModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="glass-card p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-white mb-4">Create Challenge</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-white/70 mb-1">Challenge Type</label>
+                <select
+                  value={challengeForm.quest_type}
+                  onChange={(e) => setChallengeForm({ ...challengeForm, quest_type: e.target.value })}
+                  className="select-dark"
+                >
+                  <option value="daily">Daily (ends today)</option>
+                  <option value="weekly">Weekly (7 days)</option>
+                  <option value="special">Special (30 days)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-white/70 mb-1">Title *</label>
+                <input
+                  type="text"
+                  value={challengeForm.title}
+                  onChange={(e) => setChallengeForm({ ...challengeForm, title: e.target.value })}
+                  placeholder="e.g., Complete 5 tasks"
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-neon-blue"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-white/70 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={challengeForm.description}
+                  onChange={(e) => setChallengeForm({ ...challengeForm, description: e.target.value })}
+                  placeholder="e.g., Complete tasks to earn rewards"
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-neon-blue"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-white/70 mb-1">Target (goal number)</label>
+                <input
+                  type="number"
+                  value={challengeForm.target_value}
+                  onChange={(e) => setChallengeForm({ ...challengeForm, target_value: parseInt(e.target.value) || 1 })}
+                  min="1"
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-white/70 mb-1">Star Reward</label>
+                  <input
+                    type="number"
+                    value={challengeForm.reward_stars}
+                    onChange={(e) => setChallengeForm({ ...challengeForm, reward_stars: parseInt(e.target.value) || 0 })}
+                    min="0"
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/70 mb-1">Gem Reward</label>
+                  <input
+                    type="number"
+                    value={challengeForm.reward_gems}
+                    onChange={(e) => setChallengeForm({ ...challengeForm, reward_gems: parseInt(e.target.value) || 0 })}
+                    min="0"
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                <p className="text-blue-400 text-sm">
+                  Challenge progress updates when tasks are <strong>approved</strong> by a parent.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowChallengeModal(false)}
+                  disabled={saving}
+                  className="flex-1 px-4 py-3 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateChallenge}
+                  disabled={saving}
+                  className="flex-1 px-4 py-3 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {saving ? 'Creating...' : 'Create Challenge'}
                 </button>
               </div>
             </div>

@@ -274,23 +274,26 @@ export async function updateQuestProgress(childId, eventType, eventData = {}) {
 
     switch (eventType) {
       case 'task_completed':
+        // Task completion by child - no quest updates (wait for approval)
+        break
+
+      case 'task_approved':
+        // Task approved by parent - update quest progress
         if (quest.title === 'Task Tackler' || quest.title === 'Weekly Warrior') {
           newValue += 1
           shouldUpdate = true
         }
-        if (quest.title === 'Early Bird' && eventData.completedBeforeNoon) {
-          newValue += 1
-          shouldUpdate = true
-        }
-        if (quest.title === 'No Skips' || quest.title === 'Perfect Week') {
-          // These are checked differently - see below
-        }
-        break
-
-      case 'task_approved':
         if (quest.title === 'Star Hunter' || quest.title === 'Star Collector') {
           newValue += eventData.starsEarned || 0
           shouldUpdate = true
+        }
+        if (quest.title === 'Early Bird') {
+          // Check if approved before noon
+          const hour = new Date().getHours()
+          if (hour < 12) {
+            newValue += 1
+            shouldUpdate = true
+          }
         }
         break
 

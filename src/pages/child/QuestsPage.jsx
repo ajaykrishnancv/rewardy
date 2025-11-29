@@ -4,7 +4,6 @@ import { supabase } from '../../lib/supabase'
 import {
   generateDailyQuests,
   generateWeeklyQuests,
-  updateQuestProgress,
   updateStreak,
   checkAchievements,
   expireOldQuests
@@ -145,19 +144,13 @@ export default function QuestsPage() {
       // Update streak
       await updateStreak(childId)
 
-      // Update quest progress
-      const hour = new Date().getHours()
-      const completedQuests = await updateQuestProgress(childId, 'task_completed', {
-        completedBeforeNoon: hour < 12
-      })
-
       // Check for new achievements
       const newAchievements = await checkAchievements(childId)
 
-      // Show celebration for completed quests or achievements
-      if (completedQuests.length > 0 || newAchievements.length > 0) {
+      // Show celebration for achievements (quest progress updates on approval)
+      if (newAchievements.length > 0) {
         setCelebrationData({
-          quests: completedQuests,
+          quests: [],
           achievements: newAchievements
         })
         setShowCelebration(true)

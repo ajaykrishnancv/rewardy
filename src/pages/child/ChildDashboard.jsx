@@ -12,11 +12,19 @@ function getLocalDateString(date = new Date()) {
   return `${year}-${month}-${day}`
 }
 
+// Helper to format 24-hour time to 12-hour AM/PM
+function formatTimeToAMPM(timeStr) {
+  if (!timeStr) return 'Anytime'
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const displayHours = hours % 12 || 12
+  return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`
+}
+
 export default function ChildDashboard() {
   const { user } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [currencyBalance, setCurrencyBalance] = useState(null)
-  const [streak, setStreak] = useState(null)
   const [todaysTasks, setTodaysTasks] = useState([])
   const [activeQuests, setActiveQuests] = useState([])
   const [recentAchievements, setRecentAchievements] = useState([])
@@ -39,15 +47,6 @@ export default function ChildDashboard() {
         .eq('child_id', childId)
         .single()
       setCurrencyBalance(balance)
-
-      // Load streak
-      const { data: streakData } = await supabase
-        .from('streaks')
-        .select('*')
-        .eq('child_id', childId)
-        .eq('streak_type', 'daily')
-        .single()
-      setStreak(streakData)
 
       // Load today's tasks
       const today = getLocalDateString()
@@ -152,21 +151,6 @@ export default function ChildDashboard() {
           </p>
         </div>
 
-        {/* Currency display */}
-        <div className="flex gap-4 mt-4">
-          <div className="flex items-center gap-1 px-3 py-1 bg-yellow-500/20 rounded-lg">
-            <span className="text-lg">⭐</span>
-            <span className="text-white font-bold">{currencyBalance?.wallet_stars || 0}</span>
-          </div>
-          <div className="flex items-center gap-1 px-3 py-1 bg-purple-500/20 rounded-lg">
-            <span className="text-lg">💎</span>
-            <span className="text-white font-bold">{currencyBalance?.gems || 0}</span>
-          </div>
-          <div className="flex items-center gap-1 px-3 py-1 bg-orange-500/20 rounded-lg">
-            <span className="text-lg">🔥</span>
-            <span className="text-white font-bold">{streak?.current_streak || 0}</span>
-          </div>
-        </div>
       </div>
 
       {/* Today's Progress */}
@@ -260,7 +244,7 @@ export default function ChildDashboard() {
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs text-white/50">
-                        {task.scheduled_time || 'Anytime'}
+                        {formatTimeToAMPM(task.scheduled_time)}
                       </span>
                       <span className="badge-star text-xs">+{task.star_value}</span>
                     </div>

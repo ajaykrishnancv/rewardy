@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore, ROLES } from '../stores/authStore'
 import { useUIStore } from '../stores/uiStore'
+import { supabase } from '../lib/supabase'
 
 const parentNavItems = [
   { path: '/dashboard', label: 'Dashboard', icon: 'home', exact: true },
@@ -80,6 +82,49 @@ export default function DashboardLayout({ variant = 'parent' }) {
   const isChild = variant === 'child' || user?.role === ROLES.CHILD
   const navItems = isChild ? childNavItems : parentNavItems
 
+  // Child currency and streak state
+  const [childStats, setChildStats] = useState({
+    stars: 0,
+    gems: 0,
+    streak: 0
+  })
+
+  // Fetch child stats
+  useEffect(() => {
+    if (isChild && user?.childProfile?.id) {
+      loadChildStats()
+    }
+  }, [isChild, user?.childProfile?.id])
+
+  async function loadChildStats() {
+    try {
+      const childId = user.childProfile.id
+
+      // Fetch currency balance
+      const { data: balance } = await supabase
+        .from('currency_balances')
+        .select('wallet_stars, gems')
+        .eq('child_id', childId)
+        .single()
+
+      // Fetch streak
+      const { data: streak } = await supabase
+        .from('streaks')
+        .select('current_streak')
+        .eq('child_id', childId)
+        .eq('streak_type', 'daily')
+        .single()
+
+      setChildStats({
+        stars: balance?.wallet_stars || 0,
+        gems: balance?.gems || 0,
+        streak: streak?.current_streak || 0
+      })
+    } catch (error) {
+      console.error('Error loading child stats:', error)
+    }
+  }
+
   const handleLogout = async () => {
     await logout()
     navigate('/login')
@@ -111,7 +156,8 @@ export default function DashboardLayout({ variant = 'parent' }) {
         } lg:translate-x-0`}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center justify-center border-b border-white/10">
+        <div className="h-16 flex items-center justify-center gap-2 border-b border-white/10">
+          <img src="/Picture1.png" alt="Rewardy" className="w-10 h-10 object-contain" />
           <h1 className="text-xl font-bold text-white">
             <span className="neon-text-blue">Rewardy</span>
           </h1>
@@ -142,11 +188,11 @@ export default function DashboardLayout({ variant = 'parent' }) {
             <div className="mt-4 flex gap-3">
               <div className="star-display">
                 <span className="star-icon">★</span>
-                <span className="text-white font-bold text-sm">0</span>
+                <span className="text-white font-bold text-sm">{childStats.stars}</span>
               </div>
               <div className="gem-display">
                 <span className="gem-icon">◆</span>
-                <span className="text-white font-bold text-sm">0</span>
+                <span className="text-white font-bold text-sm">{childStats.gems}</span>
               </div>
             </div>
           )}
@@ -222,7 +268,7 @@ export default function DashboardLayout({ variant = 'parent' }) {
             <div className="flex items-center gap-4">
               <div className="streak-fire">
                 <span className="streak-fire-icon">🔥</span>
-                <span className="text-white font-bold text-sm">0</span>
+                <span className="text-white font-bold text-sm">{childStats.streak}</span>
               </div>
             </div>
           )}
