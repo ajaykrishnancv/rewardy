@@ -671,16 +671,16 @@ export default function SchedulePage() {
                           const category = getCategoryInfo(task.category)
                           const overdue = isTaskOverdue(task)
                           const statusColors = {
-                            pending: overdue ? 'border-pink-500/50 bg-pink-500/20' : 'border-white/20',
-                            completed: 'border-yellow-500/50 bg-yellow-500/10',
-                            approved: 'border-green-500/50 bg-green-500/10',
-                            rejected: 'border-red-500/50 bg-red-500/10'
+                            pending: overdue ? 'border-pink-500/50 bg-pink-500/20' : 'border-orange-500/50 bg-orange-500/20',
+                            completed: 'border-green-500/50 bg-green-500/20',
+                            approved: 'border-green-500/50 bg-green-500/20',
+                            rejected: 'border-red-500/50 bg-red-500/20'
                           }
                           return (
                             <div
                               key={task.id}
                               onClick={() => canEditSchedule && openEditTask(task)}
-                              className={`p-2 rounded-lg border text-xs mb-1 ${overdue ? 'bg-pink-500/20 border-pink-500/50' : category.color} ${statusColors[task.status] || ''} ${canEditSchedule ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
+                              className={`p-2 rounded-lg border text-xs mb-1 ${statusColors[task.status] || category.color} ${canEditSchedule ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity`}
                             >
                               <div className="flex items-center gap-1">
                                 <span>{category.icon}</span>

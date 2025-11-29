@@ -14,6 +14,7 @@ export default function AuthLayout() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
+          <img src="/Picture1.png" alt="Rewardy" className="w-24 h-24 mx-auto mb-4 object-contain" />
           <h1 className="text-4xl font-bold text-white mb-2">Rewardy</h1>
           <p className="text-white/80">Homeschool Motivation System</p>
         </div>
