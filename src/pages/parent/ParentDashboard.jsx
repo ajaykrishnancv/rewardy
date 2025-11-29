@@ -4,6 +4,14 @@ import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
+// Helper to get local date string (YYYY-MM-DD) without timezone issues
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function ParentDashboard() {
   const { user, hasPermission } = useAuthStore()
 
@@ -93,6 +101,7 @@ export default function ParentDashboard() {
         setPendingRedemptions(redemptions || [])
 
         // Calculate today's stats
+        const today = getLocalDateString()
         const { data: todayTasks } = await supabase
           .from('daily_tasks')
           .select('*')
