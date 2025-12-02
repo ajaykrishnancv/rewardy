@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
 import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil, getTimeSlots } from '../../lib/timeSettings'
+import { useModalStore } from '../../components/ConfirmModal'
 import toast from 'react-hot-toast'
 
 const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -72,6 +73,7 @@ export default function SchedulePage() {
   const [showItemModal, setShowItemModal] = useState(false)
   const [showCopyDayModal, setShowCopyDayModal] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
+  const { showDelete, showDeleteSchedule, showConfirm } = useModalStore()
   const [editingTask, setEditingTask] = useState(null) // For editing actual tasks
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [copyFromDay, setCopyFromDay] = useState('monday')
@@ -353,46 +355,85 @@ export default function SchedulePage() {
     }
   }
 
-  async function handleDeleteItem(item) {
-    if (!confirm('Are you sure you want to delete this schedule template?')) return
+  function handleDeleteItem(item) {
+    showDelete({
+      title: 'Delete Schedule Template',
+      message: `Are you sure you want to delete "${item.title}"?\n\nThis will remove it from the weekly schedule.`,
+      confirmText: 'Delete Template',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('schedule_blocks')
+            .update({ is_active: false })
+            .eq('id', item.id)
 
-    try {
-      const { error } = await supabase
-        .from('schedule_blocks')
-        .update({ is_active: false })
-        .eq('id', item.id)
+          if (error) throw error
+          toast.success('Schedule template deleted')
+          setShowItemModal(false)
+          loadData()
+        } catch (error) {
+          console.error('Error deleting item:', error)
+          toast.error('Failed to delete item')
+        }
+      }
+    })
+  }
 
-      if (error) throw error
-      toast.success('Schedule template deleted')
-      loadData()
-    } catch (error) {
-      console.error('Error deleting item:', error)
-      toast.error('Failed to delete item')
+  function handleDeleteTask(task) {
+    const hasScheduleBlock = task.schedule_block_id
+
+    if (hasScheduleBlock) {
+      // Show 3-button modal for scheduled tasks
+      showDeleteSchedule({
+        title: 'Delete Task',
+        message: `"${task.title}"\n\nThis task is part of a recurring schedule. What would you like to do?`,
+        onDeleteInstance: async () => {
+          await deleteTaskOnly(task)
+        },
+        onDeleteSchedule: async () => {
+          await deleteTaskAndSchedule(task)
+        }
+      })
+    } else {
+      // Show simple delete modal for one-off tasks
+      showDelete({
+        title: 'Delete Task',
+        message: `Are you sure you want to delete "${task.title}"?`,
+        confirmText: 'Delete',
+        onConfirm: async () => {
+          await deleteTaskOnly(task)
+        }
+      })
     }
   }
 
-  async function handleDeleteTask(task) {
-    // Check if task has an associated schedule block
-    const hasScheduleBlock = task.schedule_block_id
-
-    let deleteFromSchedule = false
-    if (hasScheduleBlock) {
-      // Ask user if they want to delete from schedule too
-      deleteFromSchedule = confirm(
-        'This task is from a recurring schedule.\n\n' +
-        'Click OK to delete this task AND remove it from the schedule template.\n' +
-        'Click Cancel to delete only this one instance.'
-      )
-    } else {
-      if (!confirm('Are you sure you want to delete this task?')) return
-    }
-
+  async function deleteTaskOnly(task) {
     try {
-      // Immediately remove from local state for better UX
       setWeekTasks(prev => prev.filter(t => t.id !== task.id))
       setShowItemModal(false)
 
-      // Delete the task
+      const { error } = await supabase
+        .from('daily_tasks')
+        .delete()
+        .eq('id', task.id)
+
+      if (error) {
+        loadData()
+        throw error
+      }
+      toast.success('Task deleted')
+    } catch (error) {
+      console.error('Error deleting task:', error)
+      toast.error('Failed to delete task')
+    }
+  }
+
+  async function deleteTaskAndSchedule(task) {
+    try {
+      setWeekTasks(prev => prev.filter(t => t.id !== task.id))
+      setShowItemModal(false)
+
+      // Delete the current task
       const { error: taskError } = await supabase
         .from('daily_tasks')
         .delete()
@@ -403,38 +444,43 @@ export default function SchedulePage() {
         throw taskError
       }
 
-      // If user chose to delete from schedule, deactivate the schedule block
-      if (deleteFromSchedule && task.schedule_block_id) {
-        const { error: blockError } = await supabase
-          .from('schedule_blocks')
-          .update({ is_active: false })
-          .eq('id', task.schedule_block_id)
+      // Deactivate the schedule block
+      const { error: blockError } = await supabase
+        .from('schedule_blocks')
+        .update({ is_active: false })
+        .eq('id', task.schedule_block_id)
 
-        if (blockError) {
-          console.error('Error deactivating schedule block:', blockError)
-          toast.success('Task deleted (schedule template update failed)')
-        } else {
-          // Also delete any future tasks from this schedule block
-          await supabase
-            .from('daily_tasks')
-            .delete()
-            .eq('schedule_block_id', task.schedule_block_id)
-            .gte('task_date', new Date().toISOString().split('T')[0])
-
-          toast.success('Task and schedule template deleted')
-          loadData() // Reload to reflect schedule changes
-        }
-      } else {
-        toast.success('Task deleted')
+      if (blockError) {
+        console.error('Error deactivating schedule block:', blockError)
+        toast.success('Task deleted (schedule update failed)')
+        return
       }
+
+      // Delete future tasks from this schedule
+      await supabase
+        .from('daily_tasks')
+        .delete()
+        .eq('schedule_block_id', task.schedule_block_id)
+        .gte('task_date', new Date().toISOString().split('T')[0])
+
+      toast.success('Task and schedule deleted')
+      loadData()
     } catch (error) {
-      console.error('Error deleting task:', error)
-      toast.error('Failed to delete task')
+      console.error('Error deleting task and schedule:', error)
+      toast.error('Failed to delete')
     }
   }
 
-  async function generateTasksForWeek() {
-    if (!confirm('Generate daily tasks for this week based on the schedule? Existing tasks will not be duplicated.')) return
+  function generateTasksForWeek() {
+    showConfirm({
+      title: 'Generate Tasks',
+      message: 'Generate daily tasks for this week based on the schedule?\n\nExisting tasks will not be duplicated.',
+      confirmText: 'Generate',
+      onConfirm: () => doGenerateTasksForWeek()
+    })
+  }
+
+  async function doGenerateTasksForWeek() {
 
     try {
       const weekDates = getWeekDates()

@@ -6,6 +6,7 @@ import { useAuthStore, ROLES } from './stores/authStore'
 import ErrorBoundary from './components/ErrorBoundary'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import OfflineBanner from './components/OfflineBanner'
+import ConfirmModal from './components/ConfirmModal'
 
 // Layouts
 import AuthLayout from './layouts/AuthLayout'
@@ -113,6 +114,7 @@ function App() {
     <ErrorBoundary>
       <OfflineBanner />
       <PWAInstallPrompt />
+      <ConfirmModal />
       <Routes>
         {/* Public routes */}
         <Route element={<AuthLayout />}>

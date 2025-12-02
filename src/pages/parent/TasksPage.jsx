@@ -7,6 +7,7 @@ import {
   updateSkillProgress
 } from '../../services/gamificationService'
 import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil } from '../../lib/timeSettings'
+import { useModalStore } from '../../components/ConfirmModal'
 import toast from 'react-hot-toast'
 
 const TASK_CATEGORIES = [
@@ -39,6 +40,7 @@ export default function TasksPage() {
   const { user, hasPermission } = useAuthStore()
   const canEditSchedule = hasPermission('editSchedule')
   const canApproveTasks = hasPermission('approveTasks')
+  const { showDelete } = useModalStore()
 
   const [loading, setLoading] = useState(true)
   const [childProfile, setChildProfile] = useState(null)
@@ -265,28 +267,31 @@ export default function TasksPage() {
     }
   }
 
-  async function handleDeleteTask(task) {
-    if (!confirm('Are you sure you want to delete this task?')) return
+  function handleDeleteTask(task) {
+    showDelete({
+      title: 'Delete Task',
+      message: `Are you sure you want to delete "${task.title}"?`,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          setTasks(prev => prev.filter(t => t.id !== task.id))
 
-    try {
-      // Immediately remove from local state for better UX
-      setTasks(prev => prev.filter(t => t.id !== task.id))
+          const { error } = await supabase
+            .from('daily_tasks')
+            .delete()
+            .eq('id', task.id)
 
-      const { error } = await supabase
-        .from('daily_tasks')
-        .delete()
-        .eq('id', task.id)
-
-      if (error) {
-        // Restore the task if deletion failed
-        loadData()
-        throw error
+          if (error) {
+            loadData()
+            throw error
+          }
+          toast.success('Task deleted')
+        } catch (error) {
+          console.error('Error deleting task:', error)
+          toast.error('Failed to delete task')
+        }
       }
-      toast.success('Task deleted')
-    } catch (error) {
-      console.error('Error deleting task:', error)
-      toast.error('Failed to delete task')
-    }
+    })
   }
 
   async function handleApproveTask(task) {
