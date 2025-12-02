@@ -372,24 +372,61 @@ export default function SchedulePage() {
   }
 
   async function handleDeleteTask(task) {
-    if (!confirm('Are you sure you want to delete this task?')) return
+    // Check if task has an associated schedule block
+    const hasScheduleBlock = task.schedule_block_id
+
+    let deleteFromSchedule = false
+    if (hasScheduleBlock) {
+      // Ask user if they want to delete from schedule too
+      deleteFromSchedule = confirm(
+        'This task is from a recurring schedule.\n\n' +
+        'Click OK to delete this task AND remove it from the schedule template.\n' +
+        'Click Cancel to delete only this one instance.'
+      )
+    } else {
+      if (!confirm('Are you sure you want to delete this task?')) return
+    }
 
     try {
       // Immediately remove from local state for better UX
       setWeekTasks(prev => prev.filter(t => t.id !== task.id))
       setShowItemModal(false)
 
-      const { error } = await supabase
+      // Delete the task
+      const { error: taskError } = await supabase
         .from('daily_tasks')
         .delete()
         .eq('id', task.id)
 
-      if (error) {
-        // Restore if deletion failed
+      if (taskError) {
         loadData()
-        throw error
+        throw taskError
       }
-      toast.success('Task deleted')
+
+      // If user chose to delete from schedule, deactivate the schedule block
+      if (deleteFromSchedule && task.schedule_block_id) {
+        const { error: blockError } = await supabase
+          .from('schedule_blocks')
+          .update({ is_active: false })
+          .eq('id', task.schedule_block_id)
+
+        if (blockError) {
+          console.error('Error deactivating schedule block:', blockError)
+          toast.success('Task deleted (schedule template update failed)')
+        } else {
+          // Also delete any future tasks from this schedule block
+          await supabase
+            .from('daily_tasks')
+            .delete()
+            .eq('schedule_block_id', task.schedule_block_id)
+            .gte('task_date', new Date().toISOString().split('T')[0])
+
+          toast.success('Task and schedule template deleted')
+          loadData() // Reload to reflect schedule changes
+        }
+      } else {
+        toast.success('Task deleted')
+      }
     } catch (error) {
       console.error('Error deleting task:', error)
       toast.error('Failed to delete task')
