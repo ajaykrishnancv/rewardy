@@ -1,12 +1,13 @@
 import { create } from 'zustand'
 
-// Get initial sidebar collapsed state from localStorage
+// Get initial sidebar collapsed state from localStorage (default: collapsed)
 const getInitialCollapsedState = () => {
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('sidebarCollapsed')
-    return stored === 'true'
+    // Default to collapsed (true) if no preference stored
+    return stored === null ? true : stored === 'true'
   }
-  return false
+  return true
 }
 
 export const useUIStore = create((set) => ({
