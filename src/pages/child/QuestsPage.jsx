@@ -8,7 +8,84 @@ import {
   checkAchievements,
   expireOldQuests
 } from '../../services/gamificationService'
+import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil } from '../../lib/timeSettings'
 import toast from 'react-hot-toast'
+
+// Text-to-Speech helper with young girl voice
+function speakText(text) {
+  if ('speechSynthesis' in window) {
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel()
+
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 0.9 // Natural pace
+    utterance.pitch = 1.5 // Higher pitch to sound like a young girl
+    utterance.volume = 1
+
+    // Try to find a female voice (will sound like a girl with high pitch)
+    const voices = window.speechSynthesis.getVoices()
+
+    // Priority order for voices that work well with high pitch
+    const preferredVoice =
+      voices.find(v => v.name.includes('Samantha')) || // iOS/macOS
+      voices.find(v => v.name.includes('Google UK English Female')) ||
+      voices.find(v => v.name.includes('Google US English Female')) ||
+      voices.find(v => v.name.includes('Microsoft Zira')) || // Windows
+      voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
+      voices.find(v => v.lang.startsWith('en') && !v.name.toLowerCase().includes('male')) ||
+      voices.find(v => v.lang.startsWith('en'))
+
+    if (preferredVoice) {
+      utterance.voice = preferredVoice
+    }
+
+    window.speechSynthesis.speak(utterance)
+  } else {
+    toast.error('Text-to-speech not supported in this browser')
+  }
+}
+
+// TTS Button Component - Speaker icon button
+function TTSButton({ text, className = '', size = 'normal' }) {
+  const [isSpeaking, setIsSpeaking] = useState(false)
+
+  const handleSpeak = (e) => {
+    e.stopPropagation()
+    if (isSpeaking) {
+      window.speechSynthesis.cancel()
+      setIsSpeaking(false)
+    } else {
+      setIsSpeaking(true)
+      speakText(text)
+      // Reset speaking state when done
+      const checkSpeaking = setInterval(() => {
+        if (!window.speechSynthesis.speaking) {
+          setIsSpeaking(false)
+          clearInterval(checkSpeaking)
+        }
+      }, 100)
+    }
+  }
+
+  // Small size for list items, normal size for main task
+  const sizeClasses = size === 'small'
+    ? 'px-3 py-1.5 text-base'
+    : 'px-4 py-2 text-lg'
+
+  return (
+    <button
+      onClick={handleSpeak}
+      className={`${sizeClasses} rounded-xl transition-opacity hover:opacity-90 ${
+        isSpeaking
+          ? 'bg-gradient-to-r from-gray-500 to-gray-600'
+          : 'bg-gradient-to-r from-red-500 to-orange-500'
+      } ${className}`}
+      title={isSpeaking ? 'Stop' : 'Listen'}
+    >
+      {isSpeaking ? '⏹️' : '🔊'}
+    </button>
+  )
+}
 
 const TASK_CATEGORIES = [
   { value: 'academic', label: 'Academic', icon: '📚' },
@@ -49,6 +126,7 @@ export default function QuestsPage() {
   const [showCelebration, setShowCelebration] = useState(false)
   const [celebrationData, setCelebrationData] = useState(null)
   const [currentTime, setCurrentTime] = useState(getCurrentTimeInMinutes())
+  const [timeSettings, setTimeSettings] = useState(null)
   const initializedRef = useRef(false)
 
   // Update current time every minute
@@ -81,7 +159,19 @@ export default function QuestsPage() {
     try {
       setLoading(true)
       const childId = user.childProfile.id
-      const today = getLocalDateString()
+
+      // Load family time settings
+      const { data: family } = await supabase
+        .from('families')
+        .select('settings')
+        .eq('id', user.familyId)
+        .single()
+
+      const settings = getTimeSettings(family?.settings || {})
+      setTimeSettings(settings)
+
+      // Use logical date based on time settings
+      const today = getLogicalDate(new Date(), settings.dayStartTime)
 
       // Load tasks for today
       const { data: tasks } = await supabase
@@ -310,13 +400,18 @@ export default function QuestsPage() {
               </div>
             </div>
 
-            <button
-              onClick={() => handleCompleteTask(currentTask)}
-              className="w-full mt-4 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold text-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-            >
-              <span>Mark as Done!</span>
-              <span className="text-2xl">✓</span>
-            </button>
+            <div className="flex items-center gap-3 mt-4">
+              <TTSButton
+                text={`${currentTask.title}. ${currentTask.description || ''}`}
+              />
+              <button
+                onClick={() => handleCompleteTask(currentTask)}
+                className="flex-1 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-bold text-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-3"
+              >
+                <span>Mark as Done!</span>
+                <span className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-400 to-purple-500 flex items-center justify-center text-white text-lg font-bold shadow-md">✓</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -360,7 +455,13 @@ export default function QuestsPage() {
                     <p className="text-white font-medium">{task.title}</p>
                     <p className="text-white/50 text-xs">{formatTime(task.scheduled_time)}</p>
                   </div>
-                  <span className="badge-star text-xs">+{task.star_value}</span>
+                  <div className="flex items-center gap-3">
+                    <TTSButton
+                      text={`${task.title}. ${task.description || ''}`}
+                      size="small"
+                    />
+                    <span className="badge-star text-xs">+{task.star_value}</span>
+                  </div>
                 </div>
               )
             })}
@@ -389,12 +490,19 @@ export default function QuestsPage() {
                     <p className="text-white font-medium">{task.title}</p>
                     <span className="badge-star text-xs">+{task.star_value}</span>
                   </div>
-                  <button
-                    onClick={() => handleCompleteTask(task)}
-                    className="px-4 py-2 bg-green-500/20 text-green-400 rounded-xl text-sm font-medium hover:bg-green-500/30 transition-colors"
-                  >
-                    Done!
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <TTSButton
+                      text={`${task.title}. ${task.description || ''}`}
+                      size="small"
+                    />
+                    <button
+                      onClick={() => handleCompleteTask(task)}
+                      className="px-4 py-2 bg-green-500/20 text-green-400 rounded-xl text-sm font-medium hover:bg-green-500/30 transition-colors flex items-center gap-2"
+                    >
+                      <span>Done!</span>
+                      <span className="w-5 h-5 rounded-full bg-gradient-to-r from-pink-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold">✓</span>
+                    </button>
+                  </div>
                 </div>
               )
             })}

@@ -1,8 +1,80 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
+import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil } from '../../lib/timeSettings'
 import toast from 'react-hot-toast'
+
+// Text-to-Speech helper with young girl voice
+function speakText(text) {
+  if ('speechSynthesis' in window) {
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel()
+
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 0.9 // Natural pace
+    utterance.pitch = 1.5 // Higher pitch to sound like a young girl
+    utterance.volume = 1
+
+    // Try to find a female voice (will sound like a girl with high pitch)
+    const voices = window.speechSynthesis.getVoices()
+
+    // Priority order for voices that work well with high pitch
+    const preferredVoice =
+      voices.find(v => v.name.includes('Samantha')) || // iOS/macOS
+      voices.find(v => v.name.includes('Google UK English Female')) ||
+      voices.find(v => v.name.includes('Google US English Female')) ||
+      voices.find(v => v.name.includes('Microsoft Zira')) || // Windows
+      voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
+      voices.find(v => v.lang.startsWith('en') && !v.name.toLowerCase().includes('male')) ||
+      voices.find(v => v.lang.startsWith('en'))
+
+    if (preferredVoice) {
+      utterance.voice = preferredVoice
+    }
+
+    window.speechSynthesis.speak(utterance)
+  } else {
+    toast.error('Text-to-speech not supported in this browser')
+  }
+}
+
+// TTS Button Component - Speaker icon button
+function TTSButton({ text, className = '' }) {
+  const [isSpeaking, setIsSpeaking] = useState(false)
+
+  const handleSpeak = (e) => {
+    e.stopPropagation()
+    if (isSpeaking) {
+      window.speechSynthesis.cancel()
+      setIsSpeaking(false)
+    } else {
+      setIsSpeaking(true)
+      speakText(text)
+      // Reset speaking state when done
+      const checkSpeaking = setInterval(() => {
+        if (!window.speechSynthesis.speaking) {
+          setIsSpeaking(false)
+          clearInterval(checkSpeaking)
+        }
+      }, 100)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleSpeak}
+      className={`px-4 py-2 rounded-xl text-lg transition-opacity hover:opacity-90 ${
+        isSpeaking
+          ? 'bg-gradient-to-r from-gray-500 to-gray-600'
+          : 'bg-gradient-to-r from-red-500 to-orange-500'
+      } ${className}`}
+      title={isSpeaking ? 'Stop' : 'Listen'}
+    >
+      {isSpeaking ? '⏹️' : '🔊'}
+    </button>
+  )
+}
 
 // Helper to get local date string (YYYY-MM-DD) without timezone issues
 function getLocalDateString(date = new Date()) {
@@ -28,6 +100,7 @@ export default function ChildDashboard() {
   const [todaysTasks, setTodaysTasks] = useState([])
   const [activeQuests, setActiveQuests] = useState([])
   const [recentAchievements, setRecentAchievements] = useState([])
+  const [timeSettings, setTimeSettings] = useState(null)
 
   useEffect(() => {
     if (user?.childProfile?.id) {
@@ -40,6 +113,16 @@ export default function ChildDashboard() {
       setLoading(true)
       const childId = user.childProfile.id
 
+      // Load family time settings
+      const { data: family } = await supabase
+        .from('families')
+        .select('settings')
+        .eq('id', user.familyId)
+        .single()
+
+      const settings = getTimeSettings(family?.settings || {})
+      setTimeSettings(settings)
+
       // Load currency balance
       const { data: balance } = await supabase
         .from('currency_balances')
@@ -48,8 +131,8 @@ export default function ChildDashboard() {
         .single()
       setCurrencyBalance(balance)
 
-      // Load today's tasks
-      const today = getLocalDateString()
+      // Load today's tasks based on logical day (using time settings)
+      const today = getLogicalDate(new Date(), settings.dayStartTime)
       const { data: tasks } = await supabase
         .from('daily_tasks')
         .select('*')
@@ -250,21 +333,25 @@ export default function ChildDashboard() {
                     </div>
                   </div>
 
-                  {/* Action button */}
-                  {task.status === 'pending' && (
-                    <button
-                      onClick={() => handleCompleteTask(task)}
-                      className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
-                    >
-                      Done!
-                    </button>
-                  )}
-                  {task.status === 'completed' && (
-                    <span className="text-yellow-400 text-sm">Awaiting...</span>
-                  )}
-                  {task.status === 'approved' && (
-                    <span className="text-green-400 text-sm">Approved!</span>
-                  )}
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-3">
+                    <TTSButton text={`${task.title}. ${task.description || ''}`} />
+                    {task.status === 'pending' && (
+                      <button
+                        onClick={() => handleCompleteTask(task)}
+                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity flex items-center gap-2"
+                      >
+                        <span>Done!</span>
+                        <span className="w-6 h-6 rounded-full bg-gradient-to-r from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-md">✓</span>
+                      </button>
+                    )}
+                    {task.status === 'completed' && (
+                      <span className="text-yellow-400 text-sm">Awaiting...</span>
+                    )}
+                    {task.status === 'approved' && (
+                      <span className="text-green-400 text-sm">Approved!</span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

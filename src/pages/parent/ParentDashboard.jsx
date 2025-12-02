@@ -33,11 +33,31 @@ export default function ParentDashboard() {
     starsEarned: 0
   })
 
-  // Award stars modal
+  // Award/Deduct currency modal
   const [showAwardModal, setShowAwardModal] = useState(false)
   const [awardAmount, setAwardAmount] = useState(5)
   const [awardReason, setAwardReason] = useState('')
+  const [awardType, setAwardType] = useState('award') // 'award' or 'deduct'
+  const [currencyType, setCurrencyType] = useState('stars') // 'stars' or 'gems'
   const [awarding, setAwarding] = useState(false)
+
+  // Common reasons for awards/deductions
+  const AWARD_REASONS = [
+    { label: 'Good Behavior', value: 'Good behavior' },
+    { label: 'Helping Others', value: 'Helping others' },
+    { label: 'Charity/Kindness', value: 'Charity or act of kindness' },
+    { label: 'Extra Effort', value: 'Going above and beyond' },
+    { label: 'Excellent Work', value: 'Excellent work' },
+    { label: 'Special Achievement', value: 'Special achievement' }
+  ]
+
+  const DEDUCT_REASONS = [
+    { label: 'Rule Breaking', value: 'Breaking household rules' },
+    { label: 'Not Following Instructions', value: 'Not following instructions' },
+    { label: 'Disrespectful Behavior', value: 'Disrespectful behavior' },
+    { label: 'Not Completing Chores', value: 'Not completing assigned chores' },
+    { label: 'Screen Time Violation', value: 'Screen time violation' }
+  ]
 
   useEffect(() => {
     if (user?.familyId) {
@@ -309,44 +329,94 @@ export default function ParentDashboard() {
     }
   }
 
-  async function handleAwardStars() {
+  async function handleAwardCurrency() {
     if (!awardAmount || awardAmount <= 0) {
       toast.error('Please enter a valid amount')
       return
     }
 
+    // Check if deducting more than available
+    if (awardType === 'deduct') {
+      const availableAmount = currencyType === 'stars'
+        ? currencyBalance.wallet_stars
+        : currencyBalance.gems
+
+      if (awardAmount > availableAmount) {
+        toast.error(`Cannot deduct more than available (${availableAmount} ${currencyType})`)
+        return
+      }
+    }
+
     try {
       setAwarding(true)
 
-      // Update balance
-      const { error: balanceError } = await supabase
-        .from('currency_balances')
-        .update({
-          wallet_stars: currencyBalance.wallet_stars + awardAmount,
-          lifetime_stars_earned: currencyBalance.lifetime_stars_earned + awardAmount,
-          updated_at: new Date().toISOString()
-        })
-        .eq('child_id', childProfile.id)
+      const amount = awardType === 'award' ? awardAmount : -awardAmount
+      const transactionType = awardType === 'award' ? 'earn' : 'deduct'
+      const descriptionPrefix = awardType === 'award' ? 'Award' : 'Deduction'
 
-      if (balanceError) throw balanceError
+      if (currencyType === 'stars') {
+        // Update stars balance
+        const newWalletStars = currencyBalance.wallet_stars + amount
+        const updateData = {
+          wallet_stars: Math.max(0, newWalletStars),
+          updated_at: new Date().toISOString()
+        }
+
+        // Only update lifetime earned if awarding (not deducting)
+        if (awardType === 'award') {
+          updateData.lifetime_stars_earned = currencyBalance.lifetime_stars_earned + awardAmount
+        }
+
+        const { error: balanceError } = await supabase
+          .from('currency_balances')
+          .update(updateData)
+          .eq('child_id', childProfile.id)
+
+        if (balanceError) throw balanceError
+      } else {
+        // Update gems balance
+        const newGems = currencyBalance.gems + amount
+        const updateData = {
+          gems: Math.max(0, newGems),
+          updated_at: new Date().toISOString()
+        }
+
+        // Only update lifetime earned if awarding
+        if (awardType === 'award') {
+          updateData.lifetime_gems_earned = (currencyBalance.lifetime_gems_earned || 0) + awardAmount
+        }
+
+        const { error: balanceError } = await supabase
+          .from('currency_balances')
+          .update(updateData)
+          .eq('child_id', childProfile.id)
+
+        if (balanceError) throw balanceError
+      }
 
       // Log transaction
       await supabase.from('transactions').insert({
         child_id: childProfile.id,
-        transaction_type: 'earn',
-        currency_type: 'stars',
-        amount: awardAmount,
-        description: awardReason || 'Bonus stars from parent'
+        transaction_type: transactionType,
+        currency_type: currencyType,
+        amount: Math.abs(amount),
+        balance_type: currencyType === 'stars' ? 'wallet' : null,
+        description: `${descriptionPrefix}: ${awardReason || (awardType === 'award' ? 'Bonus from parent' : 'Deduction by parent')}`
       })
 
-      toast.success(`Awarded ${awardAmount} stars!`)
+      const emoji = currencyType === 'stars' ? '⭐' : '💎'
+      const actionWord = awardType === 'award' ? 'Awarded' : 'Deducted'
+      toast.success(`${actionWord} ${awardAmount} ${emoji}!`)
+
       setShowAwardModal(false)
       setAwardAmount(5)
       setAwardReason('')
+      setAwardType('award')
+      setCurrencyType('stars')
       loadDashboardData()
     } catch (error) {
-      console.error('Error awarding stars:', error)
-      toast.error('Failed to award stars')
+      console.error('Error processing currency:', error)
+      toast.error(`Failed to ${awardType} ${currencyType}`)
     } finally {
       setAwarding(false)
     }
@@ -446,8 +516,8 @@ export default function ParentDashboard() {
               className="p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-center"
               disabled={!childProfile}
             >
-              <div className="text-2xl mb-2">⭐</div>
-              <p className="text-sm text-white/80">Award Stars</p>
+              <div className="text-2xl mb-2">💰</div>
+              <p className="text-sm text-white/80">Award / Deduct</p>
             </button>
           )}
           <Link
@@ -608,13 +678,73 @@ export default function ParentDashboard() {
         </div>
       )}
 
-      {/* Award Stars Modal */}
+      {/* Award/Deduct Currency Modal */}
       {showAwardModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="glass-card p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-white mb-4">Award Stars</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">
+              {awardType === 'award' ? 'Award' : 'Deduct'} {currencyType === 'stars' ? 'Stars ⭐' : 'Gems 💎'}
+            </h3>
 
             <div className="space-y-4">
+              {/* Action Type Toggle */}
+              <div>
+                <label className="block text-sm text-white/70 mb-2">Action</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setAwardType('award')}
+                    className={`px-4 py-3 rounded-xl font-medium transition-all ${
+                      awardType === 'award'
+                        ? 'bg-green-500/30 border-2 border-green-500 text-green-400'
+                        : 'bg-white/10 border border-white/20 text-white/70 hover:bg-white/20'
+                    }`}
+                  >
+                    + Award
+                  </button>
+                  <button
+                    onClick={() => setAwardType('deduct')}
+                    className={`px-4 py-3 rounded-xl font-medium transition-all ${
+                      awardType === 'deduct'
+                        ? 'bg-red-500/30 border-2 border-red-500 text-red-400'
+                        : 'bg-white/10 border border-white/20 text-white/70 hover:bg-white/20'
+                    }`}
+                  >
+                    - Deduct
+                  </button>
+                </div>
+              </div>
+
+              {/* Currency Type Toggle */}
+              <div>
+                <label className="block text-sm text-white/70 mb-2">Currency</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setCurrencyType('stars')}
+                    className={`px-4 py-3 rounded-xl font-medium transition-all ${
+                      currencyType === 'stars'
+                        ? 'bg-yellow-500/30 border-2 border-yellow-500 text-yellow-400'
+                        : 'bg-white/10 border border-white/20 text-white/70 hover:bg-white/20'
+                    }`}
+                  >
+                    ⭐ Stars
+                  </button>
+                  <button
+                    onClick={() => setCurrencyType('gems')}
+                    className={`px-4 py-3 rounded-xl font-medium transition-all ${
+                      currencyType === 'gems'
+                        ? 'bg-purple-500/30 border-2 border-purple-500 text-purple-400'
+                        : 'bg-white/10 border border-white/20 text-white/70 hover:bg-white/20'
+                    }`}
+                  >
+                    💎 Gems
+                  </button>
+                </div>
+                <p className="text-xs text-white/50 mt-1">
+                  Available: {currencyType === 'stars' ? currencyBalance?.wallet_stars || 0 : currencyBalance?.gems || 0}
+                </p>
+              </div>
+
+              {/* Amount */}
               <div>
                 <label className="block text-sm text-white/70 mb-1">Amount</label>
                 <input
@@ -622,35 +752,70 @@ export default function ParentDashboard() {
                   value={awardAmount}
                   onChange={(e) => setAwardAmount(parseInt(e.target.value) || 0)}
                   min="1"
-                  max="100"
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-star"
+                  max="1000"
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:border-neon-blue"
                 />
               </div>
 
+              {/* Quick Reason Buttons */}
+              <div>
+                <label className="block text-sm text-white/70 mb-2">Quick Reasons</label>
+                <div className="flex flex-wrap gap-2">
+                  {(awardType === 'award' ? AWARD_REASONS : DEDUCT_REASONS).map(reason => (
+                    <button
+                      key={reason.value}
+                      onClick={() => setAwardReason(reason.value)}
+                      className={`px-3 py-1 text-xs rounded-lg transition-all ${
+                        awardReason === reason.value
+                          ? awardType === 'award'
+                            ? 'bg-green-500/30 text-green-400 border border-green-500'
+                            : 'bg-red-500/30 text-red-400 border border-red-500'
+                          : 'bg-white/10 text-white/70 hover:bg-white/20'
+                      }`}
+                    >
+                      {reason.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Reason */}
               <div>
                 <label className="block text-sm text-white/70 mb-1">Reason (optional)</label>
                 <input
                   type="text"
                   value={awardReason}
                   onChange={(e) => setAwardReason(e.target.value)}
-                  placeholder="e.g., Great behavior today!"
-                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-star"
+                  placeholder={awardType === 'award' ? 'e.g., Great behavior today!' : 'e.g., Did not follow rules'}
+                  className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:border-neon-blue"
                 />
               </div>
 
               <div className="flex gap-3 justify-end mt-6">
                 <button
-                  onClick={() => setShowAwardModal(false)}
+                  onClick={() => {
+                    setShowAwardModal(false)
+                    setAwardType('award')
+                    setCurrencyType('stars')
+                    setAwardReason('')
+                  }}
                   className="px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleAwardStars}
+                  onClick={handleAwardCurrency}
                   disabled={awarding || awardAmount <= 0}
-                  className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className={`px-4 py-2 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 ${
+                    awardType === 'award'
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                      : 'bg-gradient-to-r from-red-500 to-orange-500'
+                  }`}
                 >
-                  {awarding ? 'Awarding...' : `Award ${awardAmount} Stars`}
+                  {awarding
+                    ? 'Processing...'
+                    : `${awardType === 'award' ? 'Award' : 'Deduct'} ${awardAmount} ${currencyType === 'stars' ? '⭐' : '💎'}`
+                  }
                 </button>
               </div>
             </div>

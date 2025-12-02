@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
+import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil, getTimeSlots } from '../../lib/timeSettings'
 import toast from 'react-hot-toast'
 
 const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -32,7 +33,8 @@ function isTaskOverdue(task) {
   return task.task_date < today
 }
 
-const TIME_SLOTS = [
+// Default time slots (will be overridden by family settings)
+const DEFAULT_TIME_SLOTS = [
   '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00',
   '00:00', '01:00', '02:00', '03:00', '04:00'
 ]
@@ -54,6 +56,8 @@ export default function SchedulePage() {
   const [childProfile, setChildProfile] = useState(null)
   const [scheduleItems, setScheduleItems] = useState([]) // schedule_blocks (templates)
   const [weekTasks, setWeekTasks] = useState([]) // actual daily_tasks for the week
+  const [timeSettings, setTimeSettings] = useState(null)
+  const [timeSlots, setTimeSlots] = useState(DEFAULT_TIME_SLOTS)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date()
     const dayOfWeek = today.getDay()
@@ -95,6 +99,20 @@ export default function SchedulePage() {
   async function loadData() {
     try {
       setLoading(true)
+
+      // Load family time settings
+      const { data: family } = await supabase
+        .from('families')
+        .select('settings')
+        .eq('id', user.familyId)
+        .single()
+
+      const settings = getTimeSettings(family?.settings || {})
+      setTimeSettings(settings)
+
+      // Generate time slots based on day start time
+      const slots = getTimeSlots(settings.dayStartTime)
+      setTimeSlots(slots)
 
       // Load child profile
       const { data: child } = await supabase
@@ -357,15 +375,21 @@ export default function SchedulePage() {
     if (!confirm('Are you sure you want to delete this task?')) return
 
     try {
+      // Immediately remove from local state for better UX
+      setWeekTasks(prev => prev.filter(t => t.id !== task.id))
+      setShowItemModal(false)
+
       const { error } = await supabase
         .from('daily_tasks')
         .delete()
         .eq('id', task.id)
 
-      if (error) throw error
+      if (error) {
+        // Restore if deletion failed
+        loadData()
+        throw error
+      }
       toast.success('Task deleted')
-      setShowItemModal(false)
-      loadData()
     } catch (error) {
       console.error('Error deleting task:', error)
       toast.error('Failed to delete task')
@@ -659,9 +683,9 @@ export default function SchedulePage() {
             </tr>
           </thead>
           <tbody>
-            {TIME_SLOTS.map(time => (
+            {timeSlots.map(time => (
               <tr key={time} className="border-t border-white/10">
-                <td className="p-2 text-white/50 text-sm">{formatTimeToAMPM(time)}</td>
+                <td className="p-2 text-white/50 text-sm">{timeSettings?.use24HourFormat ? time : formatTimeToAMPM(time)}</td>
                 {DAYS_OF_WEEK.map((day, dayIndex) => {
                   const tasks = getTasksForDayAndTime(dayIndex, time)
                   return (

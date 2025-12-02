@@ -73,17 +73,21 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            // Only cache GET requests to Supabase REST API
+            urlPattern: ({ request, url }) => {
+              return url.hostname.includes('supabase.co') && request.method === 'GET'
+            },
             handler: 'NetworkFirst',
             options: {
               cacheName: 'supabase-cache',
               expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 5 // 5 minutes only to prevent stale data
               },
               cacheableResponse: {
                 statuses: [0, 200]
-              }
+              },
+              networkTimeoutSeconds: 10
             }
           }
         ]

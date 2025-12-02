@@ -6,6 +6,7 @@ import {
   checkAchievements,
   updateSkillProgress
 } from '../../services/gamificationService'
+import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil } from '../../lib/timeSettings'
 import toast from 'react-hot-toast'
 
 const TASK_CATEGORIES = [
@@ -45,6 +46,7 @@ export default function TasksPage() {
   const [selectedDate, setSelectedDate] = useState(getLocalDateString())
   const [filterStatus, setFilterStatus] = useState('all')
   const [selectedTasks, setSelectedTasks] = useState([])
+  const [timeSettings, setTimeSettings] = useState(null)
 
   // Modal states
   const [showTaskModal, setShowTaskModal] = useState(false)
@@ -66,13 +68,33 @@ export default function TasksPage() {
 
   useEffect(() => {
     if (user?.familyId) {
-      loadData()
+      loadInitialData()
     }
-  }, [user?.familyId, selectedDate])
+  }, [user?.familyId])
 
-  async function loadData() {
+  useEffect(() => {
+    if (user?.familyId && childProfile) {
+      loadTasks()
+    }
+  }, [selectedDate, childProfile])
+
+  async function loadInitialData() {
     try {
       setLoading(true)
+
+      // Load family time settings
+      const { data: family } = await supabase
+        .from('families')
+        .select('settings')
+        .eq('id', user.familyId)
+        .single()
+
+      const settings = getTimeSettings(family?.settings || {})
+      setTimeSettings(settings)
+
+      // Set initial date to logical today
+      const logicalToday = getLogicalDate(new Date(), settings.dayStartTime)
+      setSelectedDate(logicalToday)
 
       // Load child profile
       const { data: child } = await supabase
@@ -84,12 +106,12 @@ export default function TasksPage() {
       setChildProfile(child)
 
       if (child) {
-        // Load tasks for selected date
+        // Load tasks for logical today
         const { data: tasksData } = await supabase
           .from('daily_tasks')
           .select('*')
           .eq('child_id', child.id)
-          .eq('task_date', selectedDate)
+          .eq('task_date', logicalToday)
           .order('created_at', { ascending: true })
 
         setTasks(tasksData || [])
@@ -100,6 +122,26 @@ export default function TasksPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function loadTasks() {
+    if (!childProfile) return
+    try {
+      const { data: tasksData } = await supabase
+        .from('daily_tasks')
+        .select('*')
+        .eq('child_id', childProfile.id)
+        .eq('task_date', selectedDate)
+        .order('created_at', { ascending: true })
+
+      setTasks(tasksData || [])
+    } catch (error) {
+      console.error('Error loading tasks:', error)
+    }
+  }
+
+  async function loadData() {
+    await loadTasks()
   }
 
   function openCreateTask() {
@@ -227,14 +269,20 @@ export default function TasksPage() {
     if (!confirm('Are you sure you want to delete this task?')) return
 
     try {
+      // Immediately remove from local state for better UX
+      setTasks(prev => prev.filter(t => t.id !== task.id))
+
       const { error } = await supabase
         .from('daily_tasks')
         .delete()
         .eq('id', task.id)
 
-      if (error) throw error
+      if (error) {
+        // Restore the task if deletion failed
+        loadData()
+        throw error
+      }
       toast.success('Task deleted')
-      loadData()
     } catch (error) {
       console.error('Error deleting task:', error)
       toast.error('Failed to delete task')

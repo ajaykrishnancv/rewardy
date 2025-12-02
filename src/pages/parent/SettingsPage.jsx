@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
+import { DEFAULT_TIME_SETTINGS, formatTime } from '../../lib/timeSettings'
 import toast from 'react-hot-toast'
 
 // Helper to get local date string (YYYY-MM-DD) without timezone issues
@@ -47,6 +48,13 @@ export default function SettingsPage() {
     reward_gems: 0
   })
 
+  // Time settings state
+  const [timeSettings, setTimeSettings] = useState({
+    dayStartTime: DEFAULT_TIME_SETTINGS.dayStartTime,
+    use24HourFormat: DEFAULT_TIME_SETTINGS.use24HourFormat
+  })
+  const [savingTimeSettings, setSavingTimeSettings] = useState(false)
+
   const [salaryForm, setSalaryForm] = useState({
     is_enabled: false,
     base_amount: 50,
@@ -67,6 +75,20 @@ export default function SettingsPage() {
   async function loadSettings() {
     try {
       setLoading(true)
+
+      // Load family settings (including time settings)
+      const { data: family } = await supabase
+        .from('families')
+        .select('settings')
+        .eq('id', user.familyId)
+        .single()
+
+      if (family?.settings) {
+        setTimeSettings({
+          dayStartTime: family.settings.dayStartTime || DEFAULT_TIME_SETTINGS.dayStartTime,
+          use24HourFormat: family.settings.use24HourFormat ?? DEFAULT_TIME_SETTINGS.use24HourFormat
+        })
+      }
 
       // Load child profile
       const { data: child } = await supabase
@@ -384,6 +406,44 @@ export default function SettingsPage() {
     setShowChallengeModal(true)
   }
 
+  // Save time settings
+  async function handleSaveTimeSettings() {
+    try {
+      setSavingTimeSettings(true)
+
+      // Get current family settings
+      const { data: family } = await supabase
+        .from('families')
+        .select('settings')
+        .eq('id', user.familyId)
+        .single()
+
+      const currentSettings = family?.settings || {}
+      const updatedSettings = {
+        ...currentSettings,
+        dayStartTime: timeSettings.dayStartTime,
+        use24HourFormat: timeSettings.use24HourFormat
+      }
+
+      const { error } = await supabase
+        .from('families')
+        .update({
+          settings: updatedSettings,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.familyId)
+
+      if (error) throw error
+
+      toast.success('Time settings saved!')
+    } catch (error) {
+      console.error('Error saving time settings:', error)
+      toast.error('Failed to save time settings')
+    } finally {
+      setSavingTimeSettings(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -398,6 +458,105 @@ export default function SettingsPage() {
       <div className="glass-card p-6">
         <h1 className="text-2xl font-bold text-white mb-1">Settings</h1>
         <p className="text-white/70">Configure family preferences and salary system</p>
+      </div>
+
+      {/* Time & Day Settings */}
+      <div className="glass-card p-6">
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <span>🕐</span> Time & Day Settings
+        </h2>
+        <p className="text-sm text-white/60 mb-6">
+          Configure when your day starts and how time is displayed. This is useful if your schedule spans past midnight (e.g., 3 PM to 4 AM next day).
+        </p>
+
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm text-white/70 mb-2">Day Start Time</label>
+              <select
+                value={timeSettings.dayStartTime}
+                onChange={(e) => setTimeSettings({ ...timeSettings, dayStartTime: e.target.value })}
+                className="select-dark"
+              >
+                <option value="00:00">12:00 AM (Midnight)</option>
+                <option value="01:00">1:00 AM</option>
+                <option value="02:00">2:00 AM</option>
+                <option value="03:00">3:00 AM</option>
+                <option value="04:00">4:00 AM</option>
+                <option value="05:00">5:00 AM</option>
+                <option value="06:00">6:00 AM</option>
+                <option value="07:00">7:00 AM</option>
+                <option value="08:00">8:00 AM</option>
+                <option value="09:00">9:00 AM</option>
+                <option value="10:00">10:00 AM</option>
+                <option value="11:00">11:00 AM</option>
+                <option value="12:00">12:00 PM (Noon)</option>
+              </select>
+              <p className="text-xs text-white/50 mt-1">
+                Tasks before this time will be counted as part of the previous day
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm text-white/70 mb-2">Time Format</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="timeFormat"
+                    checked={!timeSettings.use24HourFormat}
+                    onChange={() => setTimeSettings({ ...timeSettings, use24HourFormat: false })}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-white">12-hour (3:00 PM)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="timeFormat"
+                    checked={timeSettings.use24HourFormat}
+                    onChange={() => setTimeSettings({ ...timeSettings, use24HourFormat: true })}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-white">24-hour (15:00)</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+            <p className="text-sm text-white/70 mb-3">Preview</p>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-white/60">Day starts at: </span>
+                <span className="text-white font-medium">
+                  {formatTime(timeSettings.dayStartTime, timeSettings.use24HourFormat)}
+                </span>
+              </div>
+              <div>
+                <span className="text-white/60">Day ends at: </span>
+                <span className="text-white font-medium">
+                  {formatTime(timeSettings.dayStartTime, timeSettings.use24HourFormat)} (next day)
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-white/40 mt-3">
+              Example: If day starts at {formatTime(timeSettings.dayStartTime, timeSettings.use24HourFormat)},
+              then a task at 2:00 AM on Dec 2nd belongs to Dec 1st's schedule.
+            </p>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={handleSaveTimeSettings}
+              disabled={savingTimeSettings}
+              className="px-6 py-3 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {savingTimeSettings ? 'Saving...' : 'Save Time Settings'}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Salary Configuration */}
