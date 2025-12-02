@@ -8,6 +8,7 @@ import {
 } from '../../services/gamificationService'
 import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil } from '../../lib/timeSettings'
 import { useModalStore } from '../../components/ConfirmModal'
+import TimePicker from '../../components/TimePicker'
 import toast from 'react-hot-toast'
 
 const TASK_CATEGORIES = [
@@ -944,11 +945,10 @@ export default function TasksPage() {
 
                 <div>
                   <label className="block text-sm text-white/70 mb-1">Scheduled Time</label>
-                  <input
-                    type="time"
+                  <TimePicker
                     value={taskForm.scheduled_time}
-                    onChange={(e) => setTaskForm({ ...taskForm, scheduled_time: e.target.value })}
-                    className="input-dark"
+                    onChange={(time) => setTaskForm({ ...taskForm, scheduled_time: time })}
+                    label="Scheduled Time"
                   />
                 </div>
               </div>

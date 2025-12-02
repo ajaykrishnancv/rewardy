@@ -473,3 +473,18 @@ body {
 .input-dark::placeholder {
   color: rgba(255, 255, 255, 0.5);
 }
+
+/* Hide scrollbar for time picker */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area for mobile devices */
+.h-safe-area-inset-bottom {
+  height: env(safe-area-inset-bottom, 0px);
+}

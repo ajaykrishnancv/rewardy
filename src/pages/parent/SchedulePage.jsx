@@ -3,6 +3,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
 import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil, getTimeSlots } from '../../lib/timeSettings'
 import { useModalStore } from '../../components/ConfirmModal'
+import TimePicker from '../../components/TimePicker'
 import toast from 'react-hot-toast'
 
 const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -921,22 +922,20 @@ export default function SchedulePage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-white/70 mb-1">{editingTask ? 'Time' : 'Start Time'}</label>
-                  <input
-                    type="time"
+                  <TimePicker
                     value={itemForm.start_time}
-                    onChange={(e) => setItemForm({ ...itemForm, start_time: e.target.value })}
-                    className="input-dark"
+                    onChange={(time) => setItemForm({ ...itemForm, start_time: time })}
+                    label={editingTask ? 'Time' : 'Start Time'}
                   />
                 </div>
 
                 {!editingTask && (
                   <div>
                     <label className="block text-sm text-white/70 mb-1">End Time</label>
-                    <input
-                      type="time"
+                    <TimePicker
                       value={itemForm.end_time}
-                      onChange={(e) => setItemForm({ ...itemForm, end_time: e.target.value })}
-                      className="input-dark"
+                      onChange={(time) => setItemForm({ ...itemForm, end_time: time })}
+                      label="End Time"
                     />
                   </div>
                 )}
