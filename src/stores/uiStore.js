@@ -1,12 +1,38 @@
 import { create } from 'zustand'
 
+// Get initial sidebar collapsed state from localStorage
+const getInitialCollapsedState = () => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('sidebarCollapsed')
+    return stored === 'true'
+  }
+  return false
+}
+
 export const useUIStore = create((set) => ({
-  // Sidebar state
-  sidebarOpen: true,
+  // Sidebar state (for mobile overlay)
+  sidebarOpen: false,
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
-  // Mobile menu
+  // Sidebar collapsed state (for desktop rail mode)
+  sidebarCollapsed: getInitialCollapsedState(),
+  toggleSidebarCollapsed: () => set((state) => {
+    const newState = !state.sidebarCollapsed
+    localStorage.setItem('sidebarCollapsed', String(newState))
+    return { sidebarCollapsed: newState }
+  }),
+  setSidebarCollapsed: (collapsed) => {
+    localStorage.setItem('sidebarCollapsed', String(collapsed))
+    set({ sidebarCollapsed: collapsed })
+  },
+
+  // More sheet (mobile bottom nav overflow menu)
+  moreSheetOpen: false,
+  toggleMoreSheet: () => set((state) => ({ moreSheetOpen: !state.moreSheetOpen })),
+  setMoreSheetOpen: (open) => set({ moreSheetOpen: open }),
+
+  // Mobile menu (legacy - keeping for compatibility)
   mobileMenuOpen: false,
   toggleMobileMenu: () => set((state) => ({ mobileMenuOpen: !state.mobileMenuOpen })),
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),

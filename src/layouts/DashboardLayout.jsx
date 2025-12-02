@@ -3,6 +3,8 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore, ROLES } from '../stores/authStore'
 import { useUIStore } from '../stores/uiStore'
 import { supabase } from '../lib/supabase'
+import BottomNav, { NavIcon } from '../components/BottomNav'
+import MoreSheet from '../components/MoreSheet'
 
 const parentNavItems = [
   { path: '/dashboard', label: 'Dashboard', icon: 'home', exact: true },
@@ -22,61 +24,14 @@ const childNavItems = [
   { path: '/child/skills', label: 'Skills', icon: 'skills' },
 ]
 
-function NavIcon({ icon }) {
-  const icons = {
-    home: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    ),
-    calendar: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    ),
-    tasks: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-      </svg>
-    ),
-    gift: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
-      </svg>
-    ),
-    chart: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
-    cog: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
-    bank: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l9-4 9 4v2H3V6zm0 4h18v10a2 2 0 01-2 2H5a2 2 0 01-2-2V10zm4 4v4m4-4v4m4-4v4" />
-      </svg>
-    ),
-    trophy: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3h14a1 1 0 011 1v3a7 7 0 01-7 7 7 7 0 01-7-7V4a1 1 0 011-1zm7 14v4m-4 0h8" />
-      </svg>
-    ),
-    skills: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-      </svg>
-    ),
-  }
-  return icons[icon] || null
-}
-
 export default function DashboardLayout({ variant = 'parent' }) {
   const { user, logout } = useAuthStore()
-  const { sidebarOpen, toggleSidebar, setSidebarOpen } = useUIStore()
+  const {
+    sidebarCollapsed,
+    toggleSidebarCollapsed,
+    moreSheetOpen,
+    setMoreSheetOpen
+  } = useUIStore()
   const navigate = useNavigate()
 
   const isChild = variant === 'child' || user?.role === ROLES.CHILD
@@ -140,6 +95,19 @@ export default function DashboardLayout({ variant = 'parent' }) {
     return true
   })
 
+  // Split items for mobile: first 4 in bottom nav, rest in "More" sheet
+  const mobileNavItems = filteredNavItems.slice(0, 4)
+  const moreItems = filteredNavItems.slice(4)
+
+  // User info for the more sheet
+  const userInfo = {
+    initial: isChild
+      ? user?.childProfile?.display_name?.[0] || '?'
+      : user?.roleLabel?.[0] || 'U',
+    name: isChild ? user?.childProfile?.display_name || 'Champion' : user?.roleLabel,
+    family: user?.familyName
+  }
+
   return (
     <div className="min-h-screen bg-animated-gradient">
       {/* Floating decorative orbs */}
@@ -149,42 +117,53 @@ export default function DashboardLayout({ variant = 'parent' }) {
         <div className="floating-orb floating-orb-3" />
       </div>
 
-      {/* Sidebar */}
+      {/* Desktop Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 sidebar-glass transform transition-transform duration-300 ease-in-out ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0`}
+        className={`fixed inset-y-0 left-0 z-50 hidden lg:flex flex-col sidebar-glass transition-all duration-300 ease-in-out ${
+          sidebarCollapsed ? 'w-[72px]' : 'w-64'
+        }`}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center justify-center gap-2 border-b border-white/10">
-          <img src="/Picture1.png" alt="Rewardy" className="w-10 h-10 object-contain" />
-          <h1 className="text-xl font-bold text-white">
-            <span className="neon-text-blue">Rewardy</span>
-          </h1>
+        <div className={`h-16 flex items-center border-b border-white/10 ${sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-4'}`}>
+          <div className="flex items-center gap-2">
+            <img src="/Picture1.png" alt="Rewardy" className="w-10 h-10 object-contain" />
+            {!sidebarCollapsed && (
+              <h1 className="text-xl font-bold text-white">
+                <span className="neon-text-blue">Rewardy</span>
+              </h1>
+            )}
+          </div>
+          {!sidebarCollapsed && (
+            <button
+              onClick={toggleSidebarCollapsed}
+              className="p-1.5 rounded-lg hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+              title="Collapse sidebar"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* User info */}
-        <div className="p-4 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-              <span className="text-lg font-bold text-white">
-                {isChild
-                  ? user?.childProfile?.display_name?.[0] || '🚀'
-                  : user?.roleLabel?.[0] || 'U'}
+        <div className={`border-b border-white/10 ${sidebarCollapsed ? 'p-2' : 'p-4'}`}>
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
+            <div className={`rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg ${sidebarCollapsed ? 'w-10 h-10' : 'w-12 h-12'}`}>
+              <span className={`font-bold text-white ${sidebarCollapsed ? 'text-sm' : 'text-lg'}`}>
+                {userInfo.initial}
               </span>
             </div>
-            <div>
-              <p className="font-medium text-white">
-                {isChild ? user?.childProfile?.display_name || 'Champion' : user?.roleLabel}
-              </p>
-              <p className="text-sm text-white/60">
-                {user?.familyName}
-              </p>
-            </div>
+            {!sidebarCollapsed && (
+              <div className="min-w-0">
+                <p className="font-medium text-white truncate">{userInfo.name}</p>
+                <p className="text-sm text-white/60 truncate">{userInfo.family}</p>
+              </div>
+            )}
           </div>
 
           {/* Currency display for child */}
-          {isChild && (
+          {isChild && !sidebarCollapsed && (
             <div className="mt-4 flex gap-3">
               <div className="star-display">
                 <span className="star-icon">★</span>
@@ -196,18 +175,31 @@ export default function DashboardLayout({ variant = 'parent' }) {
               </div>
             </div>
           )}
+
+          {/* Compact currency for collapsed state */}
+          {isChild && sidebarCollapsed && (
+            <div className="mt-2 flex flex-col items-center gap-1">
+              <div className="flex items-center gap-1 text-yellow-400">
+                <span className="text-xs">★</span>
+                <span className="text-xs font-bold">{childStats.stars}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 space-y-1">
+        <nav className={`flex-1 overflow-y-auto ${sidebarCollapsed ? 'p-2' : 'p-4'} space-y-1`}>
           {filteredNavItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               end={item.exact}
-              onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                `sidebar-item relative flex items-center rounded-xl transition-all duration-200 ${
+                  sidebarCollapsed
+                    ? 'justify-center p-3'
+                    : 'gap-3 px-4 py-3'
+                } ${
                   isActive
                     ? 'bg-white/15 text-white shadow-lg'
                     : 'text-white/60 hover:bg-white/10 hover:text-white'
@@ -215,37 +207,51 @@ export default function DashboardLayout({ variant = 'parent' }) {
               }
             >
               <NavIcon icon={item.icon} />
-              <span>{item.label}</span>
+              {!sidebarCollapsed && <span>{item.label}</span>}
+              {sidebarCollapsed && (
+                <span className="sidebar-tooltip">{item.label}</span>
+              )}
             </NavLink>
           ))}
         </nav>
 
-        {/* Logout */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+        {/* Expand button (when collapsed) and Logout */}
+        <div className={`border-t border-white/10 ${sidebarCollapsed ? 'p-2' : 'p-4'}`}>
+          {sidebarCollapsed && (
+            <button
+              onClick={toggleSidebarCollapsed}
+              className="w-full p-3 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center mb-2"
+              title="Expand sidebar"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={handleLogout}
-            className="w-full px-4 py-2 text-sm text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-colors flex items-center gap-2"
+            className={`w-full rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-colors flex items-center ${
+              sidebarCollapsed ? 'justify-center p-3' : 'gap-2 px-4 py-2 text-sm'
+            }`}
+            title="Sign Out"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            Sign Out
+            {!sidebarCollapsed && <span>Sign Out</span>}
           </button>
         </div>
       </aside>
 
       {/* Main content */}
-      <div className="lg:ml-64 transition-all duration-300">
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-64'}`}>
         {/* Header */}
         <header className="h-16 glass-card mx-4 mt-4 rounded-xl flex items-center justify-between px-4 lg:px-6">
-          <button
-            onClick={toggleSidebar}
-            className="p-2 rounded-lg hover:bg-white/10 lg:hidden text-white"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+          {/* Logo for mobile */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <img src="/Picture1.png" alt="Rewardy" className="w-8 h-8 object-contain" />
+            <span className="text-lg font-bold neon-text-blue">Rewardy</span>
+          </div>
 
           <div className="flex-1" />
 
@@ -265,7 +271,18 @@ export default function DashboardLayout({ variant = 'parent' }) {
 
           {/* Child header stats */}
           {isChild && (
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              {/* Mobile currency display */}
+              <div className="flex items-center gap-2 lg:hidden">
+                <div className="star-display py-1 px-2">
+                  <span className="star-icon text-sm">★</span>
+                  <span className="text-white font-bold text-xs">{childStats.stars}</span>
+                </div>
+                <div className="gem-display py-1 px-2">
+                  <span className="gem-icon text-sm">◆</span>
+                  <span className="text-white font-bold text-xs">{childStats.gems}</span>
+                </div>
+              </div>
               <div className="streak-fire">
                 <span className="streak-fire-icon">🔥</span>
                 <span className="text-white font-bold text-sm">{childStats.streak}</span>
@@ -275,18 +292,27 @@ export default function DashboardLayout({ variant = 'parent' }) {
         </header>
 
         {/* Page content */}
-        <main className="p-4 lg:p-6">
+        <main className="p-4 lg:p-6 has-bottom-nav">
           <Outlet />
         </main>
       </div>
 
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      {/* Mobile Bottom Navigation */}
+      <BottomNav
+        navItems={mobileNavItems}
+        moreItems={moreItems}
+        onMoreClick={() => setMoreSheetOpen(true)}
+        onLogout={handleLogout}
+      />
+
+      {/* More Sheet */}
+      <MoreSheet
+        isOpen={moreSheetOpen}
+        onClose={() => setMoreSheetOpen(false)}
+        items={moreItems}
+        onLogout={handleLogout}
+        userInfo={userInfo}
+      />
     </div>
   )
 }

@@ -488,3 +488,61 @@ body {
 .h-safe-area-inset-bottom {
   height: env(safe-area-inset-bottom, 0px);
 }
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Bottom nav animations */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up-sheet {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-slide-up-sheet {
+  animation: slide-up-sheet 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Sidebar collapsed state */
+.sidebar-expanded {
+  width: 256px;
+}
+
+.sidebar-collapsed {
+  width: 72px;
+}
+
+/* Tooltip for collapsed sidebar */
+.sidebar-tooltip {
+  @apply absolute left-full ml-2 px-3 py-1.5 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity z-50;
+}
+
+.sidebar-item:hover .sidebar-tooltip {
+  @apply opacity-100;
+}
+
+/* Bottom nav spacing for content */
+.has-bottom-nav {
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 1024px) {
+  .has-bottom-nav {
+    padding-bottom: 0;
+  }
+}
