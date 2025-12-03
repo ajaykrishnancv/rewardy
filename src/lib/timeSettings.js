@@ -162,3 +162,31 @@ export function parseTime(input) {
 
   return null
 }
+
+// Get chronological sort value for a time based on day start
+// Times after dayStartTime come first, times before dayStartTime come later
+// This ensures proper chronological order for a "logical day"
+export function getChronologicalSortValue(timeStr, dayStartTime = '04:00') {
+  if (!timeStr) return 9999 // Unscheduled tasks go to the end
+
+  const timeMinutes = timeToMinutes(timeStr)
+  const dayStartMinutes = timeToMinutes(dayStartTime)
+
+  // If time is >= dayStart, it's in the "main" part of the day (earlier in sort order)
+  // If time is < dayStart, it's in the "late night" part (later in sort order)
+  if (timeMinutes >= dayStartMinutes) {
+    return timeMinutes - dayStartMinutes
+  } else {
+    // Add 24 hours worth of minutes to push it after the main day times
+    return (24 * 60) + timeMinutes - dayStartMinutes
+  }
+}
+
+// Sort tasks chronologically based on day start time
+export function sortTasksChronologically(tasks, dayStartTime = '04:00') {
+  return [...tasks].sort((a, b) => {
+    const aValue = getChronologicalSortValue(a.scheduled_time, dayStartTime)
+    const bValue = getChronologicalSortValue(b.scheduled_time, dayStartTime)
+    return aValue - bValue
+  })
+}

@@ -8,7 +8,7 @@ import {
   checkAchievements,
   expireOldQuests
 } from '../../services/gamificationService'
-import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil } from '../../lib/timeSettings'
+import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil, sortTasksChronologically } from '../../lib/timeSettings'
 import toast from 'react-hot-toast'
 
 // Text-to-Speech helper with young girl voice
@@ -179,8 +179,10 @@ export default function QuestsPage() {
         .select('*')
         .eq('child_id', childId)
         .eq('task_date', today)
-        .order('scheduled_time', { ascending: true, nullsLast: true })
-      setTodaysTasks(tasks || [])
+
+      // Sort tasks chronologically based on time settings
+      const sortedTasks = sortTasksChronologically(tasks || [], settings.dayStartTime)
+      setTodaysTasks(sortedTasks)
 
       // Load active quests/challenges
       const { data: quests } = await supabase

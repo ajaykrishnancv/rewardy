@@ -6,7 +6,7 @@ import {
   checkAchievements,
   updateSkillProgress
 } from '../../services/gamificationService'
-import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil } from '../../lib/timeSettings'
+import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil, sortTasksChronologically } from '../../lib/timeSettings'
 import { useModalStore } from '../../components/ConfirmModal'
 import TimePicker from '../../components/TimePicker'
 import toast from 'react-hot-toast'
@@ -135,9 +135,10 @@ export default function TasksPage() {
         .select('*')
         .eq('child_id', childProfile.id)
         .eq('task_date', selectedDate)
-        .order('created_at', { ascending: true })
 
-      setTasks(tasksData || [])
+      // Sort tasks chronologically based on time settings
+      const sortedTasks = sortTasksChronologically(tasksData || [], timeSettings?.dayStartTime || '04:00')
+      setTasks(sortedTasks)
     } catch (error) {
       console.error('Error loading tasks:', error)
     }
