@@ -8,7 +8,7 @@ import {
   checkAchievements,
   expireOldQuests
 } from '../../services/gamificationService'
-import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil, sortTasksChronologically } from '../../lib/timeSettings'
+import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil, sortTasksChronologically, getChronologicalSortValue, timeToMinutes as timeToMinutesUtil } from '../../lib/timeSettings'
 import toast from 'react-hot-toast'
 
 // Text-to-Speech helper with young girl voice
@@ -267,12 +267,17 @@ export default function QuestsPage() {
   const bonusTasks = todaysTasks.filter(t => t.is_bonus)
   const unscheduledTasks = todaysTasks.filter(t => !t.is_bonus && !t.scheduled_time)
 
-  // Find current task (pending task closest to current time)
+  // Get current time's chronological position based on day start time
+  const dayStartTime = timeSettings?.dayStartTime || '04:00'
+  const currentTimeStr = `${String(Math.floor(currentTime / 60)).padStart(2, '0')}:${String(currentTime % 60).padStart(2, '0')}`
+  const currentChronoValue = getChronologicalSortValue(currentTimeStr, dayStartTime)
+
+  // Find current task (pending task closest to or past current time in chronological order)
   const pendingScheduled = scheduledTasks.filter(t => t.status === 'pending')
   const currentTask = pendingScheduled.find(t => {
-    const taskTime = timeToMinutes(t.scheduled_time)
-    // Current task is one that's within 30 minutes of its scheduled time or has passed
-    return taskTime <= currentTime + 30
+    const taskChronoValue = getChronologicalSortValue(t.scheduled_time, dayStartTime)
+    // Current task is one that's within 30 minutes (in chronological time) or has passed
+    return taskChronoValue <= currentChronoValue + 30
   }) || pendingScheduled[0]
 
   // Up next tasks (pending tasks after current)
@@ -303,11 +308,11 @@ export default function QuestsPage() {
     return `${displayHours}:${String(minutes).padStart(2, '0')} ${period}`
   }
 
-  // Get time remaining for current task
+  // Get time remaining for current task (respects day start time)
   function getTimeStatus(timeStr) {
     if (!timeStr) return null
-    const taskTime = timeToMinutes(timeStr)
-    const diff = taskTime - currentTime
+    const taskChronoValue = getChronologicalSortValue(timeStr, dayStartTime)
+    const diff = taskChronoValue - currentChronoValue
 
     if (diff <= 0) {
       return { text: 'Due now!', urgent: true }
