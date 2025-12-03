@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
 import { DEFAULT_TIME_SETTINGS, formatTime } from '../../lib/timeSettings'
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  requestNotificationPermission,
+  showNotification,
+  DEFAULT_NOTIFICATION_SETTINGS,
+  getNotificationSettings
+} from '../../services/notificationService'
 import toast from 'react-hot-toast'
 
 // Helper to get local date string (YYYY-MM-DD) without timezone issues
@@ -55,6 +63,11 @@ export default function SettingsPage() {
   })
   const [savingTimeSettings, setSavingTimeSettings] = useState(false)
 
+  // Notification settings state
+  const [notificationSettings, setNotificationSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS)
+  const [notificationPermission, setNotificationPermission] = useState(getNotificationPermission())
+  const [savingNotificationSettings, setSavingNotificationSettings] = useState(false)
+
   const [salaryForm, setSalaryForm] = useState({
     is_enabled: false,
     base_amount: 50,
@@ -88,6 +101,8 @@ export default function SettingsPage() {
           dayStartTime: family.settings.dayStartTime || DEFAULT_TIME_SETTINGS.dayStartTime,
           use24HourFormat: family.settings.use24HourFormat ?? DEFAULT_TIME_SETTINGS.use24HourFormat
         })
+        // Load notification settings
+        setNotificationSettings(getNotificationSettings(family.settings))
       }
 
       // Load child profile
@@ -444,6 +459,76 @@ export default function SettingsPage() {
     }
   }
 
+  // Enable notifications
+  async function handleEnableNotifications() {
+    const result = await requestNotificationPermission()
+    setNotificationPermission(getNotificationPermission())
+
+    if (result.success) {
+      setNotificationSettings(prev => ({ ...prev, enabled: true }))
+      toast.success('Notifications enabled!')
+
+      // Show a test notification
+      setTimeout(() => {
+        showNotification('Notifications Enabled!', {
+          body: 'You will now receive task reminders and updates.',
+          tag: 'test-notification'
+        })
+      }, 500)
+    } else if (result.permission === 'denied') {
+      toast.error('Notifications blocked. Please enable in browser settings.')
+    }
+  }
+
+  // Save notification settings
+  async function handleSaveNotificationSettings() {
+    try {
+      setSavingNotificationSettings(true)
+
+      // Get current family settings
+      const { data: family } = await supabase
+        .from('families')
+        .select('settings')
+        .eq('id', user.familyId)
+        .single()
+
+      const currentSettings = family?.settings || {}
+      const updatedSettings = {
+        ...currentSettings,
+        notifications: notificationSettings
+      }
+
+      const { error } = await supabase
+        .from('families')
+        .update({
+          settings: updatedSettings,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.familyId)
+
+      if (error) throw error
+
+      toast.success('Notification settings saved!')
+    } catch (error) {
+      console.error('Error saving notification settings:', error)
+      toast.error('Failed to save notification settings')
+    } finally {
+      setSavingNotificationSettings(false)
+    }
+  }
+
+  // Test notification
+  async function handleTestNotification() {
+    const success = await showNotification('Test Notification', {
+      body: 'This is how your reminders will appear!',
+      tag: 'test-notification'
+    })
+
+    if (!success) {
+      toast.error('Could not show notification. Check permissions.')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -557,6 +642,171 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Notification Settings */}
+      <div className="glass-card p-6">
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <span>🔔</span> Notifications
+        </h2>
+
+        {!isNotificationSupported() ? (
+          <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
+            <p className="text-yellow-400">
+              Notifications are not supported in this browser. Try using Chrome, Firefox, or Edge.
+            </p>
+          </div>
+        ) : notificationPermission === 'denied' ? (
+          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+            <p className="text-red-400 mb-2">
+              Notifications are blocked. To enable them:
+            </p>
+            <ol className="text-sm text-white/70 list-decimal list-inside space-y-1">
+              <li>Click the lock/info icon in your browser's address bar</li>
+              <li>Find "Notifications" and change it to "Allow"</li>
+              <li>Refresh this page</li>
+            </ol>
+          </div>
+        ) : notificationPermission !== 'granted' ? (
+          <div className="space-y-4">
+            <p className="text-white/70">
+              Enable notifications to receive task reminders, approval alerts, and more.
+            </p>
+            <button
+              onClick={handleEnableNotifications}
+              className="px-6 py-3 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl font-medium hover:opacity-90 transition-opacity"
+            >
+              Enable Notifications
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Master toggle */}
+            <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div>
+                <p className="font-medium text-white">Notifications</p>
+                <p className="text-sm text-white/60">Receive reminders and alerts</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={notificationSettings.enabled}
+                  onChange={(e) => setNotificationSettings({ ...notificationSettings, enabled: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+              </label>
+            </div>
+
+            <div className={`space-y-4 ${!notificationSettings.enabled ? 'opacity-50 pointer-events-none' : ''}`}>
+              {/* Reminder time */}
+              <div>
+                <label className="block text-sm text-white/70 mb-2">Reminder Time (minutes before task)</label>
+                <select
+                  value={notificationSettings.reminderMinutes}
+                  onChange={(e) => setNotificationSettings({ ...notificationSettings, reminderMinutes: parseInt(e.target.value) })}
+                  className="select-dark"
+                >
+                  <option value="5">5 minutes before</option>
+                  <option value="10">10 minutes before</option>
+                  <option value="15">15 minutes before</option>
+                  <option value="30">30 minutes before</option>
+                  <option value="60">1 hour before</option>
+                </select>
+              </div>
+
+              {/* Notification types */}
+              <div className="space-y-3">
+                <p className="text-sm text-white/70">Notification Types</p>
+
+                <label className="flex items-center justify-between p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">⏰</span>
+                    <div>
+                      <p className="text-white font-medium">Task Reminders</p>
+                      <p className="text-xs text-white/50">Get reminded before scheduled tasks</p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.taskReminders}
+                    onChange={(e) => setNotificationSettings({ ...notificationSettings, taskReminders: e.target.checked })}
+                    className="w-5 h-5 rounded"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">✅</span>
+                    <div>
+                      <p className="text-white font-medium">Approval Alerts</p>
+                      <p className="text-xs text-white/50">Notify child when tasks are approved/rejected</p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.approvalAlerts}
+                    onChange={(e) => setNotificationSettings({ ...notificationSettings, approvalAlerts: e.target.checked })}
+                    className="w-5 h-5 rounded"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">🔥</span>
+                    <div>
+                      <p className="text-white font-medium">Streak Warnings</p>
+                      <p className="text-xs text-white/50">Remind to complete tasks to keep streak</p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.streakWarnings}
+                    onChange={(e) => setNotificationSettings({ ...notificationSettings, streakWarnings: e.target.checked })}
+                    className="w-5 h-5 rounded"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">👨‍👩‍👧</span>
+                    <div>
+                      <p className="text-white font-medium">Parent Alerts</p>
+                      <p className="text-xs text-white/50">Notify parents when child completes tasks</p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.parentAlerts}
+                    onChange={(e) => setNotificationSettings({ ...notificationSettings, parentAlerts: e.target.checked })}
+                    className="w-5 h-5 rounded"
+                  />
+                </label>
+              </div>
+
+              {/* Test button */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleTestNotification}
+                  className="px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition-colors text-sm"
+                >
+                  Send Test Notification
+                </button>
+                <span className="text-xs text-white/50">Test how notifications will appear</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={handleSaveNotificationSettings}
+                disabled={savingNotificationSettings}
+                className="px-6 py-3 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {savingNotificationSettings ? 'Saving...' : 'Save Notification Settings'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Salary Configuration */}

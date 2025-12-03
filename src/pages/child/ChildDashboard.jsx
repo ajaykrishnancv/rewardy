@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 import { supabase } from '../../lib/supabase'
 import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil, sortTasksChronologically } from '../../lib/timeSettings'
+import { useChildNotifications } from '../../hooks/useNotifications'
 import toast from 'react-hot-toast'
 
 // Text-to-Speech helper with young girl voice
@@ -101,6 +102,13 @@ export default function ChildDashboard() {
   const [activeQuests, setActiveQuests] = useState([])
   const [recentAchievements, setRecentAchievements] = useState([])
   const [timeSettings, setTimeSettings] = useState(null)
+
+  // Enable notifications for this child
+  useChildNotifications(
+    user?.childProfile?.id,
+    user?.familyId,
+    todaysTasks
+  )
 
   useEffect(() => {
     if (user?.childProfile?.id) {

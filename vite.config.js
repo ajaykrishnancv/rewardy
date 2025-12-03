@@ -90,7 +90,9 @@ export default defineConfig({
               networkTimeoutSeconds: 10
             }
           }
-        ]
+        ],
+        skipWaiting: true,
+        clientsClaim: true
       }
     })
   ],

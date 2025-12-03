@@ -8,6 +8,7 @@ import {
 } from '../../services/gamificationService'
 import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil, sortTasksChronologically } from '../../lib/timeSettings'
 import { useModalStore } from '../../components/ConfirmModal'
+import { useParentNotifications } from '../../hooks/useNotifications'
 import TimePicker from '../../components/TimePicker'
 import toast from 'react-hot-toast'
 
@@ -43,8 +44,13 @@ export default function TasksPage() {
   const canApproveTasks = hasPermission('approveTasks')
   const { showDelete } = useModalStore()
 
-  const [loading, setLoading] = useState(true)
+  // Child profile state (needed for notifications hook)
   const [childProfile, setChildProfile] = useState(null)
+
+  // Enable parent notifications for real-time task completion alerts
+  useParentNotifications(user?.familyId, childProfile?.id)
+
+  const [loading, setLoading] = useState(true)
   const [tasks, setTasks] = useState([])
   const [selectedDate, setSelectedDate] = useState(getLocalDateString())
   const [filterStatus, setFilterStatus] = useState('all')

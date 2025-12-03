@@ -9,6 +9,7 @@ import {
   expireOldQuests
 } from '../../services/gamificationService'
 import { getTimeSettings, getLogicalDate, formatTime as formatTimeUtil, sortTasksChronologically, getChronologicalSortValue, timeToMinutes as timeToMinutesUtil } from '../../lib/timeSettings'
+import { useChildNotifications } from '../../hooks/useNotifications'
 import toast from 'react-hot-toast'
 
 // Text-to-Speech helper with young girl voice
@@ -128,6 +129,13 @@ export default function QuestsPage() {
   const [currentTime, setCurrentTime] = useState(getCurrentTimeInMinutes())
   const [timeSettings, setTimeSettings] = useState(null)
   const initializedRef = useRef(false)
+
+  // Enable notifications for this child
+  useChildNotifications(
+    user?.childProfile?.id,
+    user?.familyId,
+    todaysTasks
+  )
 
   // Update current time every minute
   useEffect(() => {
